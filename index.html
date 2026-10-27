@@ -1,0 +1,2967 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>DonNotes</title>
+<style>
+  :root {
+    --bg: #000000;
+    --surface: #0a0a0a;
+    --surface-hover: #151515;
+    --text: #ffffff;
+    --muted: #888888;
+    --border: #222222;
+    --accent: #ff3b30;
+    --active-bg: #1a1a1a;
+    --active-text: #ff3b30;
+    --pin-color: #ff3b30;
+    --green: #4ade80;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%; height: 100dvh; 
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; display: flex; flex-direction: column;
+    overflow: hidden; 
+  }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg); z-index: 10; height: 60px; flex-shrink: 0;
+  }
+  .header-side { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .header-right { justify-content: flex-end; }
+  .header-subtitle { font-size: 16px; font-weight: 600; color: var(--muted); }
+  
+  .icon-btn {
+    background: transparent; border: none; color: var(--text);
+    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; cursor: pointer; transition: background 0.2s; font-size: 20px; padding: 0;
+  }
+  .icon-btn:active { background: #222; }
+  .icon-btn:disabled { opacity: 0.3; pointer-events: none; }
+  .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .drawer-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 99; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .drawer-overlay.active { opacity: 1; pointer-events: auto; }
+
+  .drawer {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 280px;
+    background: var(--surface); z-index: 100;
+    transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  }
+  .drawer.active { transform: translateX(0); }
+
+  .drawer-header { padding: 20px; border-bottom: 1px solid var(--border); font-size: 22px; font-weight: 700; }
+  .drawer-menu { list-style: none; padding: 10px 0; margin: 0; flex: 1; overflow-y: auto; }
+  .drawer-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px; cursor: pointer; font-size: 16px; font-weight: 500;
+    color: var(--text); transition: background 0.2s;
+  }
+  .drawer-item:hover { background: var(--surface-hover); }
+  .drawer-item.active { background: var(--active-bg); color: var(--active-text); }
+  .drawer-item-left { display: flex; align-items: center; gap: 12px; }
+  .drawer-item-left svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .drawer-badge { color: var(--muted); font-size: 14px; font-weight: 600; }
+
+  main { 
+    flex: 1; overflow-y: auto; position: relative; padding-bottom: 80px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .view-container { padding: 16px; max-width: 800px; margin: 0 auto; display: none; }
+  .view-container.active { display: block; animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+  .notes-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
+  }
+  .note-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; cursor: pointer; transition: background 0.15s;
+    display: flex; flex-direction: column; gap: 6px;
+    position: relative;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  .note-card:active { background: #151515; }
+  
+  .note-card-title { 
+    font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; 
+    text-overflow: ellipsis; padding-right: 20px;
+  }
+  
+  .note-card-preview {
+    font-size: 12px; color: var(--muted); line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden; white-space: pre-wrap; word-break: break-word;
+  }
+
+  .card-badges {
+    position: absolute; top: 10px; right: 10px;
+    display: flex; gap: 6px; align-items: center;
+  }
+  
+  .timer-badge {
+    display: flex; align-items: center; gap: 4px; color: var(--accent);
+    font-size: 11px; font-weight: 700; background: rgba(255,59,48,0.1);
+    padding: 2px 6px; border-radius: 4px;
+  }
+  .timer-badge svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  .pin-icon { color: var(--pin-color); display: none; }
+  .note-card.pinned .pin-icon { display: flex; }
+  .pin-icon svg { width: 16px; height: 16px; fill: currentColor; }
+
+  .tasks-grid { display: flex; flex-direction: column; gap: 8px; }
+  .task-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 10px 12px; border-radius: 8px;
+    transition: background 0.2s, opacity 0.2s;
+  }
+  
+  .drag-handle { 
+    color: #555; cursor: grab; display: flex; align-items: center; 
+    padding: 4px 6px 4px 0; flex-shrink: 0; touch-action: none;
+  }
+  .drag-handle svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  @keyframes taskShake {
+    0%   { transform: rotate(-1deg); }
+    50%  { transform: rotate(1deg); }
+    100% { transform: rotate(-1deg); }
+  }
+  .task-item.dragging {
+    animation: taskShake 0.28s ease-in-out infinite;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+    opacity: 0.95;
+    cursor: grabbing;
+  }
+  .task-placeholder {
+    border: 1px dashed var(--accent);
+    border-radius: 8px;
+    background: rgba(255,59,48,0.05);
+    pointer-events: none;
+  }
+
+  .task-checkbox {
+    appearance: none; -webkit-appearance: none;
+    width: 20px; height: 20px; border: 2px solid var(--muted); border-radius: 4px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s; background: transparent;
+    margin: 0;
+  }
+  .task-checkbox:checked { background: var(--active-text); border-color: var(--active-text); }
+  .task-checkbox:checked::after {
+    content: ''; width: 5px; height: 10px;
+    border: solid white; border-width: 0 2px 2px 0;
+    transform: rotate(45deg); margin-bottom: 2px;
+  }
+
+  .task-text {
+    flex: 1; font-size: 15px; color: var(--text); outline: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 0; padding: 2px 0;
+    word-break: break-word;
+  }
+  .task-text:focus {
+    white-space: normal; overflow: visible; border-bottom: 1px solid var(--active-text);
+    text-overflow: initial;
+  }
+  .task-text:has(.todo-item) {
+    white-space: normal; overflow: visible; text-overflow: initial;
+  }
+  .task-item.completed .task-text { text-decoration: line-through; color: var(--muted); }
+
+  .delete-task-btn {
+    background: transparent; border: none; color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 4px;
+    transition: color 0.2s, background 0.2s; flex-shrink: 0;
+  }
+  .delete-task-btn:active { background: rgba(255,59,48,0.1); color: var(--accent); }
+  .delete-task-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .pagination-controls {
+    display: flex; justify-content: center; gap: 8px; margin-top: 20px;
+    flex-wrap: wrap; padding-bottom: 20px;
+  }
+  .page-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  .page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .page-btn:active { opacity: 0.7; }
+
+  .empty-state {
+    text-align: center; color: var(--muted);
+    padding: 40px 20px; font-size: 15px; line-height: 1.6;
+  }
+
+  .empty-add-btn {
+    margin-top: 20px;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--accent); color: #fff; border: none;
+    font-size: 28px; cursor: pointer; font-family: inherit;
+    box-shadow: 0 4px 16px rgba(255, 59, 48, 0.4);
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 0 3px 0;
+    transition: transform 0.2s;
+  }
+  .empty-add-btn:active { transform: scale(0.9); }
+
+  .editor-overlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 200;
+    display: flex; flex-direction: column;
+    transform: translateY(100%); transition: transform 0.3s ease-out;
+  }
+  .editor-overlay.active { transform: translateY(0); }
+  
+  .editor-header { 
+    display: flex; justify-content: space-between; align-items: center; 
+    padding: 12px 16px; height: 60px; flex-shrink: 0; border-bottom: 1px solid var(--border);
+  }
+  
+  .editor-view { 
+    display: flex; flex-direction: column; flex: 1; overflow: hidden; 
+    padding: 16px; padding-bottom: 80px;
+  }
+  
+  .editor-view input {
+    background: transparent; border: none; color: var(--text); font-size: 22px;
+    font-weight: 600; outline: none; padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-family: inherit; flex-shrink: 0;
+  }
+
+  .editor-content {
+    flex: 1; color: #ccc; font-size: 16px; line-height: 1.6; outline: none;
+    overflow-y: auto; padding-top: 10px; word-break: break-word;
+  }
+  .editor-content:empty:before {
+    content: attr(data-placeholder); color: #444; pointer-events: none; display: block;
+  }
+  
+  .editor-content blockquote {
+    border-left: 3px solid var(--muted); margin: 0; padding-left: 10px; color: var(--muted);
+  }
+
+  /* ==== INLINE TODO ==== */
+  .todo-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 4px 0;
+    padding: 2px 0;
+    -webkit-user-select: none; user-select: none;
+    border: none;
+    background: transparent;
+    min-height: 24px;
+  }
+  .todo-item .todo-handle {
+    color: var(--muted);
+    opacity: 0.5;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    padding: 4px 2px 0 2px;
+    flex-shrink: 0;
+    touch-action: none;
+  }
+  .todo-item .todo-handle svg {
+    width: 14px; height: 14px;
+    stroke: currentColor; fill: none;
+    stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .todo-item .todo-checkbox {
+    appearance: none; -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border: 2px solid var(--muted); border-radius: 4px;
+    cursor: pointer; flex-shrink: 0;
+    background: transparent; position: relative;
+    transition: all 0.2s; margin: 3px 0 0 0;
+  }
+  .todo-item .todo-checkbox:checked {
+    background: var(--active-text);
+    border-color: var(--active-text);
+  }
+  .todo-item .todo-checkbox:checked::after {
+    content: ''; width: 4px; height: 8px;
+    border: solid white; border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    position: absolute; top: 1px; left: 4px;
+  }
+  .todo-item .todo-text {
+    flex: 1; outline: none; min-width: 0;
+    color: var(--text);
+    -webkit-user-select: text; user-select: text;
+    padding: 2px 0; line-height: 1.5;
+    font-size: inherit;
+  }
+  .todo-item .todo-text:empty:before {
+    content: attr(data-placeholder);
+    color: #444;
+    pointer-events: none;
+  }
+  .todo-item.done .todo-text {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+  .todo-item.dragging {
+    box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 4px 8px;
+    z-index: 1000;
+    animation: shake 0.28s ease-in-out infinite;
+  }
+  .todo-placeholder {
+    border: 1px dashed var(--accent);
+    border-radius: 6px;
+    background: rgba(255,59,48,0.05);
+    margin: 4px 0;
+    pointer-events: none;
+  }
+
+  .format-toolbar {
+    position: fixed; bottom: 0; left: 0; right: 0; 
+    background: #1a1a1a; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 10px 8px; z-index: 250;
+    transition: bottom 0.1s ease-out, opacity 0.15s ease-out;
+  }
+  .format-btn {
+    background: transparent; border: none; color: var(--muted);
+    width: 40px; height: 40px; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 600; transition: background 0.2s, color 0.2s;
+  }
+  .format-btn:active { background: #333; color: var(--text); }
+  .format-btn.active { background: #333; color: var(--accent); }
+  .format-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  
+  .format-divider { width: 1px; height: 24px; background: var(--border); }
+
+  .dropdown-menu {
+    position: absolute; top: 50px; right: 16px; background: #1a1a1a;
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px;
+    min-width: 180px; z-index: 300; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+  .dropdown-menu.active { display: block; }
+  .dropdown-item {
+    display: block; width: 100%; text-align: left; background: transparent;
+    border: none; color: var(--text); padding: 10px 12px; font-size: 14px;
+    cursor: pointer; border-radius: 4px;
+  }
+  .dropdown-item:active { background: #333; }
+
+  .fab {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--accent); color: #fff; border: none;
+    font-size: 28px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(255, 59, 48, 0.4);
+    cursor: pointer; z-index: 50; transition: transform 0.2s, opacity 0.2s;
+    padding: 0 0 3px 0;
+  }
+  .fab svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .fab.fab-trash { padding-bottom: 0; }
+  .fab:active { transform: scale(0.9); }
+  .fab.hidden { opacity: 0; pointer-events: none; transform: scale(0.8); }
+
+  .context-menu {
+    position: fixed; background: #1a1a1a; border: 1px solid var(--border);
+    border-radius: 12px; padding: 6px; min-width: 200px; z-index: 3000;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7); display: none;
+    animation: scaleIn 0.15s ease-out; transform-origin: top left;
+  }
+  @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+  .context-menu.active { display: block; }
+  
+  .context-menu-title {
+    padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+  }
+  .context-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+  
+  .context-menu-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; 
+    background: transparent; border: none; color: var(--text); padding: 12px;
+    font-size: 15px; cursor: pointer; border-radius: 6px; transition: background 0.15s;
+  }
+  .context-menu-item:active { background: #333; }
+  .context-menu-item.danger { color: var(--accent); }
+  .context-menu-item svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .move-bar {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1a1a1a; border: 1px solid var(--border); border-radius: 14px;
+    padding: 8px; display: none; gap: 8px; z-index: 300;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+  }
+  .move-bar.active { display: flex; }
+  .move-bar button {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 24px; border-radius: 8px; font-size: 15px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: background 0.15s;
+  }
+  .move-bar button:active { background: var(--surface-hover); }
+  .move-bar button.done { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  @keyframes shake {
+    0%   { transform: rotate(-1deg); }
+    50%  { transform: rotate(1deg); }
+    100% { transform: rotate(-1deg); }
+  }
+  body.move-mode .note-card {
+    cursor: grab;
+    touch-action: none;
+  }
+  body.move-mode .note-card.dragging {
+    cursor: grabbing;
+    animation: shake 0.28s ease-in-out infinite;
+    opacity: 0.95;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+  }
+  .note-card-placeholder {
+    border: 1px dashed var(--accent);
+    border-radius: 10px;
+    background: rgba(255,59,48,0.05);
+    pointer-events: none;
+  }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .modal-overlay.active { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: #111; border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; width: 100%; max-width: 320px; text-align: center;
+    transform: scale(0.95); transition: transform 0.2s;
+  }
+  .modal-overlay.active .modal { transform: scale(1); }
+  .modal h3 { margin: 0 0 10px 0; font-size: 18px; }
+  .modal p { margin: 0 0 24px 0; font-size: 14px; color: var(--muted); }
+  .modal-actions { display: flex; gap: 10px; }
+  .btn {
+    background: var(--text); color: var(--bg); border: 1px solid transparent; padding: 12px 20px;
+    border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+    flex: 1; transition: opacity 0.2s; text-align: center; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .btn:active { opacity: 0.7; }
+  .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+
+  .modal.modal-sync {
+    max-width: 520px;
+    width: 100%;
+    text-align: left;
+    padding: 26px;
+  }
+  .modal-sync h3 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 22px 0;
+    text-align: left;
+  }
+  .sync-label { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+  .sync-select {
+    width: 100%; background: #0a0a0a; border: 1px solid var(--border); color: var(--text);
+    padding: 14px 40px 14px 16px; border-radius: 10px; font-size: 15px; font-family: inherit;
+    margin-bottom: 14px; box-sizing: border-box; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat: no-repeat; background-position: right 14px center; cursor: pointer;
+  }
+  .sync-password {
+    width: 100%; background: #0a0a0a; border: 1px solid var(--border); color: var(--text);
+    padding: 14px 16px; border-radius: 10px; font-size: 15px; font-family: inherit;
+    margin-bottom: 14px; box-sizing: border-box; letter-spacing: 2px;
+  }
+  .sync-status {
+    display: flex; align-items: center; gap: 10px;
+    background: #0a0a0a; border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; color: var(--green); font-size: 14px; margin-bottom: 22px;
+  }
+  .sync-status svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+  .sync-actions { display: flex; flex-direction: column; gap: 10px; }
+  .sync-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .sync-row .btn { flex: 0 0 auto; padding: 12px 18px; white-space: nowrap; }
+  .sync-row.right { justify-content: flex-end; }
+
+  /* ==== CLOUD SYNC ICON STATES ==== */
+  .icon-btn.is-syncing { color: #ffb800; }
+  .icon-btn.is-syncing svg { animation: syncSpin 1.2s linear infinite; }
+  .icon-btn.is-ready { color: var(--green); }
+  .icon-btn.is-error { color: var(--accent); }
+  @keyframes syncSpin { to { transform: rotate(360deg); } }
+</style>
+  <!-- PWA Манифест -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  
+  <!-- Поддержка установки на iOS (яблочные устройства) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+<header>
+  <div class="header-side">
+    <button class="icon-btn" id="menuBtn" type="button">
+      <svg viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <span class="header-subtitle" id="headerSubtitle">Все заметки</span>
+  </div>
+  <div class="header-side header-right">
+    <button class="icon-btn" id="syncBtn" type="button">
+      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.4L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.4L21 8"/><path d="M3 21v-5h5"/><path d="M21 3v5h-5"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<nav class="drawer" id="sideDrawer">
+  <div class="drawer-header">DonNotes</div>
+  <ul class="drawer-menu">
+    <li class="drawer-item active" data-view="notes" id="navNotes">
+      <div class="drawer-item-left">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
+        Все заметки
+      </div>
+      <span class="drawer-badge" id="notesCount">0</span>
+    </li>
+    <li class="drawer-item" data-view="tasks" id="navTasks">
+      <div class="drawer-item-left">
+        <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Задачи
+      </div>
+      <span class="drawer-badge" id="tasksCount">0</span>
+    </li>
+    <li class="drawer-item" data-view="trash" id="navTrash">
+      <div class="drawer-item-left">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        Корзина
+      </div>
+      <span class="drawer-badge" id="trashCount">0</span>
+    </li>
+  </ul>
+</nav>
+
+<main>
+  <div class="view-container active" id="view-notes">
+    <div class="notes-grid" id="notesGrid"></div>
+    <div class="empty-state" id="notesEmpty" hidden>У вас пока нет заметок.<br>Нажмите «+», чтобы создать первую.</div>
+  </div>
+
+  <div class="view-container" id="view-tasks">
+    <div class="tasks-grid" id="tasksGrid"></div>
+    <div class="empty-state" id="tasksEmpty" hidden>
+      Задач еще нет.<br>Нажмите сюда, чтобы добавить первую.
+      <br>
+      <button class="empty-add-btn" id="emptyAddTaskBtn" type="button" aria-label="Добавить задачу">+</button>
+    </div>
+    <div class="pagination-controls" id="tasksPagination" hidden></div>
+  </div>
+
+  <div class="view-container" id="view-trash">
+    <div class="notes-grid" id="trashGrid"></div>
+    <div class="empty-state" id="trashEmpty" hidden>Корзина пуста.</div>
+  </div>
+</main>
+
+<button id="fabNewNote" class="fab" type="button" aria-label="Создать заметку">
+  <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<button id="fabEmptyTrash" class="fab fab-trash hidden" type="button" aria-label="Очистить корзину">
+  <svg viewBox="0 0 24 24">
+    <path d="M3 6h18"/>
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+  </svg>
+</button>
+
+<div class="move-bar" id="moveBar">
+  <button id="moveDoneBtn" type="button" class="done">Готово</button>
+</div>
+
+<div class="context-menu" id="contextMenu">
+  <div class="context-menu-title" id="ctxTitle"></div>
+  <div class="context-menu-divider"></div>
+  <button class="context-menu-item" id="ctxPin">
+    <svg viewBox="0 0 24 24"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+    <span id="ctxPinText">Закрепить</span>
+  </button>
+  <button class="context-menu-item" id="ctxMove">
+    <svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/></svg>
+    <span>Переместить</span>
+  </button>
+  <button class="context-menu-item danger" id="ctxDelete">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    Удалить
+  </button>
+</div>
+
+<div class="context-menu" id="trashContextMenu">
+  <div class="context-menu-title" id="trashCtxTitle"></div>
+  <div class="context-menu-divider"></div>
+  <button class="context-menu-item" id="trashCtxRestore">
+    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    <span>Восстановить</span>
+  </button>
+  <button class="context-menu-item danger" id="trashCtxDelete">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    <span>Удалить</span>
+  </button>
+</div>
+
+<div class="editor-overlay" id="editorOverlay">
+  <div class="editor-header">
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button class="icon-btn" id="saveNoteBtn" type="button" style="display: none;">
+        <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+      </button>
+      <button class="icon-btn" id="undoBtn" type="button" disabled>
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <button class="icon-btn" id="redoBtn" type="button" disabled>
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+    
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button class="icon-btn" id="restoreNoteBtn" type="button" style="display: none;">
+        <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      </button>
+      <button class="icon-btn" id="editorDotsBtn" type="button">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="19" r="1.5" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </div>
+  
+  <div class="editor-view">
+    <input type="text" id="noteTitle" placeholder="Заголовок..." autocomplete="off" maxlength="200" />
+    <div id="noteContent" class="editor-content" contenteditable="true" data-placeholder="Текст заметки..." spellcheck="false"></div>
+  </div>
+</div>
+
+<div class="dropdown-menu" id="editorDropdown">
+  <button class="dropdown-item" id="dropdownAddProp">Добавить свойство</button>
+  <button class="dropdown-item" id="dropdownClose">Закрыть</button>
+</div>
+
+<div class="format-toolbar" id="formatToolbar" style="display: none;">
+  <button class="format-btn" data-cmd="insertTodo" title="Задача-чекбокс">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+  </button>
+  <button class="format-btn" data-cmd="insertUnorderedList" title="Список">
+    <svg viewBox="0 0 24 24"><circle cx="4" cy="12" r="2" fill="currentColor"/><path d="M9 12h12M9 6h12M9 18h12"/></svg>
+  </button>
+  <div class="format-divider"></div>
+  
+  <button class="format-btn" data-cmd="bold" style="font-weight: 800;">B</button>
+  <button class="format-btn" data-cmd="italic" style="font-style: italic; font-family: serif;">I</button>
+  <button class="format-btn" data-cmd="underline" style="text-decoration: underline;">U</button>
+  <div class="format-divider"></div>
+  
+  <button class="format-btn" data-cmd="justifyLeft" title="По левому краю">
+    <svg viewBox="0 0 24 24"><path d="M17 10H3M21 6H3M21 14H3M17 18H3"/></svg>
+  </button>
+  <button class="format-btn" data-cmd="justifyCenter" title="По центру">
+    <svg viewBox="0 0 24 24"><path d="M18 10H6M21 6H3M21 14H3M18 18H6"/></svg>
+  </button>
+  <button class="format-btn" data-cmd="justifyRight" title="По правому краю">
+    <svg viewBox="0 0 24 24"><path d="M21 10H7M21 6H3M21 14H3M21 18H7"/></svg>
+  </button>
+  <div class="format-divider"></div>
+  
+  <button class="format-btn" data-cmd="blockquote" title="Цитата">
+    <svg viewBox="0 0 24 24"><path d="M10 11H6a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-4c0-5-3-7-6-7"/><path d="M20 11h-4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-4c0-5-3-7-6-7"/></svg>
+  </button>
+</div>
+
+<div class="modal-overlay" id="propertyModal">
+  <div class="modal">
+    <h3>Выберите свойство</h3>
+    <div class="modal-actions" style="flex-direction: column; gap: 10px;">
+      <button class="btn btn-ghost" id="propNormalBtn">Обычная</button>
+      <button class="btn btn-ghost" id="propTimerBtn">10-минутная</button>
+    </div>
+    <div class="modal-actions" style="margin-top: 15px;">
+      <button class="btn btn-ghost" id="cancelPropBtn">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3 id="deleteModalTitle">Удалить заметку?</h3>
+    <p id="deleteModalDesc">Заметка переместится в корзину.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelDeleteBtn" type="button">Отмена</button>
+      <button class="btn" id="confirmDeleteBtn" type="button" style="background: var(--accent); color: #fff;">Удалить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="emptyTrashModal">
+  <div class="modal">
+    <h3>Очистить корзину?</h3>
+    <p>Все заметки будут удалены без возможности восстановления.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelEmptyTrashBtn" type="button">Отмена</button>
+      <button class="btn" id="confirmEmptyTrashBtn" type="button" style="background: var(--accent); color: #fff;">Очистить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="syncModal">
+  <div class="modal modal-sync">
+    <h3>Синхронизация</h3>
+
+    <div class="sync-label">Репозиторий:</div>
+    <div style="padding: 14px 16px; background: #0a0a0a; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; font-size: 13px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all;">
+      donm1n3/DonNotes/main/donnotes-data.json
+    </div>
+
+    <input type="password" class="sync-password" id="syncTokenInput" placeholder="github_pat_..." />
+
+    <div class="sync-status" id="syncStatusBox">
+      <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+      <span id="syncStatusText">Выключена.</span>
+    </div>
+
+    <div class="sync-actions">
+      <div class="sync-row">
+        <button class="btn btn-ghost" type="button" id="syncOtherSettingsBtn">Другие настройки</button>
+        <button class="btn btn-ghost" type="button" id="closeSyncBtn">Закрыть</button>
+        <button class="btn btn-ghost" type="button" id="syncDisableBtn" style="display:none;">Отключить</button>
+        <button class="btn btn-ghost" type="button" id="syncSaveBtn">Сохранить</button>
+      </div>
+      <div class="sync-row right">
+        <button class="btn btn-ghost" type="button" id="syncNowBtn" style="display:none;">Синхронизировать сейчас</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="syncConflictModal">
+  <div class="modal">
+    <h3>Конфликт данных</h3>
+    <p style="font-size:14px; color:var(--muted); line-height:1.5; margin: 0 0 16px 0;">
+      Локальные данные и данные на GitHub отличаются. Какие данные использовать?
+    </p>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <button class="btn btn-ghost" id="syncKeepLocal" type="button" style="text-align: left; padding: 14px; flex-direction: column; align-items: flex-start; gap: 4px; height: auto;">
+        <div style="font-weight: 600; color: #fff; font-size: 14px;">Данные с этого устройства</div>
+        <div style="font-size: 12px; color: var(--muted);" id="syncLocalTime">—</div>
+      </button>
+      <button class="btn btn-ghost" id="syncKeepRemote" type="button" style="text-align: left; padding: 14px; flex-direction: column; align-items: flex-start; gap: 4px; height: auto;">
+        <div style="font-weight: 600; color: #fff; font-size: 14px;">Данные из GitHub (облако)</div>
+        <div style="font-size: 12px; color: var(--muted);" id="syncRemoteTime">—</div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let notes = [];
+  let tasks = [];
+  let trash = [];
+  
+  let currentNoteId = null;
+  let pendingDeleteId = null;
+  let currentEditorMode = 'notes';
+
+  let currentTaskPage = 1;
+  const TASKS_PER_PAGE = 15;
+
+  let contextNoteId = null;
+  let contextTrashNoteId = null;
+  let undoStack = [];
+  let redoStack = [];
+  let historyTimer = null;
+
+  let moveModeActive = false;
+  let dragState = null;
+  let todoDragState = null;
+  let taskDragState = null;
+
+  let savedRange = null;
+  let savedEditable = null;
+
+  const NOTES_KEY = 'donnotes_notes_v7';
+  const TASKS_KEY = 'donnotes_tasks_v7';
+  const TRASH_KEY = 'donnotes_trash_v7';
+  const TRASH_CLEANUP_KEY = 'donnotes_trash_last_cleanup';
+
+  /* ============ CLOUD SYNC ============ */
+  const SYNC_TOKEN_KEY      = 'donnotes_gh_token';
+  const LAST_MODIFIED_KEY   = 'donnotes_last_modified';
+  const DEFAULT_GH_OWNER    = 'donm1n3';
+  const DEFAULT_GH_REPO     = 'DonNotes';
+  const DEFAULT_GH_PATH     = 'donnotes-data.json';
+  const DEFAULT_GH_BRANCH   = 'main';
+
+  const ghOwner  = DEFAULT_GH_OWNER;
+  const ghRepo   = DEFAULT_GH_REPO;
+  const ghPath   = DEFAULT_GH_PATH;
+  const ghBranch = DEFAULT_GH_BRANCH;
+
+  let syncToken = null;
+  let syncStatus = 'off';
+  let syncError = '';
+  let remoteSha = null;
+  let syncBusy = false;
+  let pendingSync = false;
+  let syncTimer = null;
+  let pendingRemoteData = null;
+  let lastModified = Number(localStorage.getItem(LAST_MODIFIED_KEY) || 0);
+
+  function touchModified() {
+    lastModified = Date.now();
+    localStorage.setItem(LAST_MODIFIED_KEY, String(lastModified));
+  }
+
+  function syncApiUrl() {
+    return `https://api.github.com/repos/${ghOwner}/${ghRepo}/contents/${ghPath}`;
+  }
+  function syncHeaders() {
+    return { 'Authorization': 'Bearer ' + syncToken, 'Accept': 'application/vnd.github+json' };
+  }
+  function toBase64(str) {
+    const b = new TextEncoder().encode(str);
+    let bin = ''; b.forEach(x => bin += String.fromCharCode(x));
+    return btoa(bin);
+  }
+  function fromBase64(b64) {
+    const bin = atob(b64.replace(/\s/g, ''));
+    const b = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(b);
+  }
+
+  function buildPayload() {
+    return { version: 1, notes, tasks, trash, lastModified };
+  }
+
+  function applyPayload(data) {
+    notes = (Array.isArray(data.notes) ? data.notes : []).map(sanitizeNote).filter(Boolean);
+    tasks = (Array.isArray(data.tasks) ? data.tasks : []).map(sanitizeTask).filter(Boolean);
+    trash = (Array.isArray(data.trash) ? data.trash : []).map(sanitizeNote).filter(Boolean);
+    normalizeOrders();
+    lastModified = Number(data.lastModified) || Date.now();
+    localStorage.setItem(LAST_MODIFIED_KEY, String(lastModified));
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+    localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+    localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
+    updateCounts();
+    renderNotes();
+    renderTasks();
+    renderTrash();
+  }
+
+  function schedulePush() {
+    if (!syncToken) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => pushToGitHub(), 1500);
+  }
+
+  function updateSyncUI() {
+    const btn = document.getElementById('syncBtn');
+    btn.classList.remove('is-syncing', 'is-ready', 'is-error');
+    if (syncStatus === 'syncing')      btn.classList.add('is-syncing');
+    else if (syncStatus === 'ready')   btn.classList.add('is-ready');
+    else if (syncStatus === 'error')   btn.classList.add('is-error');
+
+    const statusText = document.getElementById('syncStatusText');
+    const statusBox  = document.getElementById('syncStatusBox');
+    if (statusText) {
+      if (syncStatus === 'syncing')      statusText.textContent = 'Синхронизация…';
+      else if (syncStatus === 'ready')   statusText.textContent = 'Включена. Данные синхронизированы.';
+      else if (syncStatus === 'error')   statusText.textContent = 'Ошибка: ' + (syncError || '');
+      else                               statusText.textContent = 'Выключена.';
+    }
+    if (statusBox) {
+      statusBox.style.color = syncStatus === 'error'   ? 'var(--accent)'
+                            : syncStatus === 'syncing' ? 'var(--muted)'
+                            : syncStatus === 'ready'   ? 'var(--green)'
+                            : 'var(--muted)';
+    }
+
+    const disableBtn = document.getElementById('syncDisableBtn');
+    const saveBtn    = document.getElementById('syncSaveBtn');
+    const nowBtn     = document.getElementById('syncNowBtn');
+    const tokenInput = document.getElementById('syncTokenInput');
+    if (disableBtn) disableBtn.style.display = syncToken ? '' : 'none';
+    if (saveBtn)    saveBtn.style.display    = syncToken ? 'none' : '';
+    if (nowBtn)     nowBtn.style.display     = syncToken ? '' : 'none';
+    if (tokenInput) {
+      tokenInput.value    = syncToken ? '••••••••' : '';
+      tokenInput.disabled = !!syncToken;
+    }
+  }
+
+  async function pullFromGitHub() {
+    if (!syncToken || syncBusy) return;
+    syncBusy = true; syncStatus = 'syncing'; syncError = ''; updateSyncUI();
+    try {
+      const r = await fetch(syncApiUrl(), { headers: syncHeaders(), cache: 'no-cache' });
+      if (r.status === 404) { syncBusy = false; return pushToGitHub({ force: true }); }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      const data = await r.json();
+      remoteSha = data.sha;
+      const remote = JSON.parse(fromBase64(data.content));
+      const localTime  = lastModified || 0;
+      const remoteTime = Number(remote.lastModified) || 0;
+      const diff = Math.abs(localTime - remoteTime);
+
+      if (diff > 2000 && localTime > 0 && remoteTime > 0) {
+        pendingRemoteData = remote;
+        document.getElementById('syncLocalTime').textContent  = 'Обновлено: ' + new Date(localTime).toLocaleString();
+        document.getElementById('syncRemoteTime').textContent = 'Обновлено: ' + new Date(remoteTime).toLocaleString();
+        document.getElementById('syncConflictModal').classList.add('active');
+        syncStatus = 'error'; syncError = 'Выберите данные';
+        syncBusy = false; updateSyncUI(); return;
+      }
+
+      if (localTime === 0 && remoteTime > 0) {
+        applyPayload(remote);
+      } else if (remoteTime === 0 && localTime > 0) {
+        syncBusy = false; return pushToGitHub({ force: true });
+      }
+      syncStatus = 'ready';
+    } catch (e) {
+      syncStatus = 'error'; syncError = e.message;
+    } finally {
+      syncBusy = false; updateSyncUI();
+    }
+  }
+
+  async function pushToGitHub(opts = {}) {
+    if (!syncToken) return;
+    if (syncBusy) { pendingSync = true; return; }
+    syncBusy = true; pendingSync = false; syncStatus = 'syncing'; syncError = ''; updateSyncUI();
+    try {
+      if (!remoteSha && !opts.force) {
+        const r = await fetch(syncApiUrl(), { headers: syncHeaders() });
+        if (r.ok) remoteSha = (await r.json()).sha;
+        else if (r.status !== 404) throw new Error('HTTP ' + r.status);
+      }
+      const body = {
+        message: 'sync ' + new Date().toISOString(),
+        content: toBase64(JSON.stringify(buildPayload(), null, 2)),
+        branch: ghBranch
+      };
+      if (remoteSha) body.sha = remoteSha;
+      const res = await fetch(syncApiUrl(), {
+        method: 'PUT',
+        headers: { ...syncHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.status === 409) { remoteSha = null; pendingSync = true; return; }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      remoteSha = (await res.json())?.content?.sha || remoteSha;
+      syncStatus = 'ready';
+    } catch (e) {
+      syncStatus = 'error'; syncError = e.message;
+    } finally {
+      syncBusy = false; updateSyncUI();
+      if (pendingSync) setTimeout(() => pushToGitHub({ force: true }), 400);
+    }
+  }
+
+  const mainEl = document.querySelector('main');
+  const notesGrid = document.getElementById('notesGrid');
+  const notesEmpty = document.getElementById('notesEmpty');
+  const tasksGrid = document.getElementById('tasksGrid');
+  const tasksEmpty = document.getElementById('tasksEmpty');
+  const tasksPagination = document.getElementById('tasksPagination');
+  const trashGrid = document.getElementById('trashGrid');
+  const trashEmpty = document.getElementById('trashEmpty');
+  
+  const headerSubtitle = document.getElementById('headerSubtitle');
+  const fab = document.getElementById('fabNewNote');
+  const fabEmptyTrash = document.getElementById('fabEmptyTrash');
+  const drawer = document.getElementById('sideDrawer');
+  const drawerOverlay = document.getElementById('drawerOverlay');
+  const moveBar = document.getElementById('moveBar');
+  
+  const editorOverlay = document.getElementById('editorOverlay');
+  const noteTitle = document.getElementById('noteTitle');
+  const noteContent = document.getElementById('noteContent');
+  const formatToolbar = document.getElementById('formatToolbar');
+  const editorDropdown = document.getElementById('editorDropdown');
+  
+  const saveNoteBtn = document.getElementById('saveNoteBtn');
+  const restoreNoteBtn = document.getElementById('restoreNoteBtn');
+  
+  const deleteModal = document.getElementById('deleteModal');
+  const deleteModalTitle = document.getElementById('deleteModalTitle');
+  const deleteModalDesc = document.getElementById('deleteModalDesc');
+  const contextMenu = document.getElementById('contextMenu');
+  const trashContextMenu = document.getElementById('trashContextMenu');
+  const propertyModal = document.getElementById('propertyModal');
+
+  function genId() {
+    return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  }
+  
+  function escapeHtml(text) {
+    if (!text) return '';
+    return String(text).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  }
+
+  function isTaskTextEmpty(html) {
+    if (!html) return true;
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    if (div.textContent.trim()) return false;
+    if (div.querySelector('input, .todo-item, img')) return false;
+    return true;
+  }
+
+  function loadData() {
+    try { notes = JSON.parse(localStorage.getItem(NOTES_KEY) || '[]').map(sanitizeNote).filter(Boolean); } catch(e) { notes = []; }
+    try { tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]').map(sanitizeTask).filter(Boolean); } catch(e) { tasks = []; }
+    try { trash = JSON.parse(localStorage.getItem(TRASH_KEY) || '[]').map(sanitizeNote).filter(Boolean); } catch(e) { trash = []; }
+    normalizeOrders();
+  }
+  
+  function saveNotes() {
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+    updateCounts();
+    touchModified();
+    schedulePush();
+  }
+  function saveTasks() {
+    const toSave = tasks.map(t => ({
+      id: t.id, text: t.text, completed: t.completed, order: t.order, v: 2
+    })).filter(t => !isTaskTextEmpty(t.text) || t.completed);
+    localStorage.setItem(TASKS_KEY, JSON.stringify(toSave));
+    updateCounts();
+    touchModified();
+    schedulePush();
+  }
+  function saveTrash() {
+    localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
+    updateCounts();
+    touchModified();
+    schedulePush();
+  }
+
+  function sanitizeNote(n) {
+    if (!n || typeof n !== 'object') return null;
+    const isTimer = n.noteType === 'timer';
+    return { 
+      id: String(n.id || genId()), 
+      title: String(n.title || ''), 
+      content: String(n.content || ''), 
+      updatedAt: Number(n.updatedAt) || Date.now(),
+      createdAt: Number(n.createdAt) || Date.now(),
+      deletedAt: n.deletedAt ? Number(n.deletedAt) : null,
+      pinned: Boolean(n.pinned),
+      noteType: isTimer ? 'timer' : 'normal',
+      timerStartedAt: n.timerStartedAt ? Number(n.timerStartedAt) : (isTimer ? Number(n.createdAt) || Date.now() : null),
+      order: typeof n.order === 'number' ? n.order : undefined
+    };
+  }
+  
+  function sanitizeTask(t) {
+    if (!t || typeof t !== 'object') return null;
+    const isV2 = t.v === 2;
+    const rawText = String(t.text || '');
+    const text = isV2 ? rawText : escapeHtml(rawText);
+    return { 
+      id: String(t.id || genId()), 
+      text: text, 
+      completed: Boolean(t.completed), 
+      order: Number(t.order) || 0,
+      v: 2
+    };
+  }
+
+  function normalizeOrders() {
+    [true, false].forEach(pinned => {
+      const group = notes.filter(n => n.pinned === pinned).sort((a,b) => {
+        const ao = a.order ?? 0, bo = b.order ?? 0;
+        if (ao !== bo) return ao - bo;
+        return b.updatedAt - a.updatedAt;
+      });
+      group.forEach((n, i) => n.order = i);
+    });
+  }
+
+  function getNewNoteOrder(pinned) {
+    const group = notes.filter(n => n.pinned === pinned);
+    if (group.length === 0) return 0;
+    return Math.min(...group.map(n => n.order ?? 0)) - 1;
+  }
+
+  function updateCounts() {
+    document.getElementById('notesCount').textContent = notes.length;
+    document.getElementById('tasksCount').textContent = tasks.filter(t => !t.completed).length;
+    document.getElementById('trashCount').textContent = trash.length;
+  }
+
+  function sortedNotes() {
+    return [...notes].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+  }
+
+  function getMostRecentMidnight() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  }
+
+  function checkTrashMidnightCleanup() {
+    const lastCleanup = Number(localStorage.getItem(TRASH_CLEANUP_KEY) || 0);
+    const midnight = getMostRecentMidnight();
+    if (lastCleanup >= midnight) return;
+    localStorage.setItem(TRASH_CLEANUP_KEY, String(midnight));
+    if (trash.length > 0) {
+      const wasEditingTrash = currentEditorMode === 'trash' && editorOverlay.classList.contains('active');
+      trash = [];
+      saveTrash();
+      renderTrash();
+      if (wasEditingTrash) closeEditor();
+    }
+  }
+
+  function renderNotes() {
+    notesGrid.innerHTML = '';
+    if (notes.length === 0) { notesEmpty.hidden = false; return; }
+    notesEmpty.hidden = true;
+
+    const sorted = sortedNotes();
+
+    for (const note of sorted) {
+      const title = note.title.trim() || 'Пустая заметка';
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = note.content;
+      const preview = tempDiv.textContent || tempDiv.innerText || '';
+      
+      const startTime = note.timerStartedAt || note.createdAt;
+      const remainingMs = note.noteType === 'timer' ? (10 * 60 * 1000 - (Date.now() - startTime)) : -1;
+      const isTimer = note.noteType === 'timer' && remainingMs > 0;
+
+      let timerHtml = '';
+      if (isTimer) {
+        const sec = Math.floor(remainingMs / 1000);
+        const m = String(Math.floor(sec / 60)).padStart(2, '0');
+        const s = String(sec % 60).padStart(2, '0');
+        timerHtml = `<div class="timer-badge" data-id="${note.id}"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${m}:${s}</span></div>`;
+      }
+
+      const card = document.createElement('div');
+      card.className = `note-card ${note.pinned ? 'pinned' : ''}`;
+      card.dataset.id = note.id;
+      
+      card.innerHTML = `
+        <div class="card-badges">
+          ${timerHtml}
+          <div class="pin-icon" style="display: ${note.pinned ? 'flex' : 'none'}"><svg viewBox="0 0 24 24"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg></div>
+        </div>
+        <div class="note-card-title">${escapeHtml(title)}</div>
+        <div class="note-card-preview">${escapeHtml(preview)}</div>
+      `;
+
+      let pressTimer = null;
+      let isLongPress = false;
+
+      const startPress = (e) => {
+        if (moveModeActive) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (isLongPress) return;
+        isLongPress = false;
+        clearTimeout(pressTimer);
+        const ev = e;
+        pressTimer = setTimeout(() => {
+          isLongPress = true;
+          if (navigator.vibrate) navigator.vibrate(50);
+          openContextMenu(ev, note.id);
+        }, 500);
+      };
+      const cancelPress = () => clearTimeout(pressTimer);
+
+      card.addEventListener('pointerdown', startPress);
+      card.addEventListener('pointerup', cancelPress);
+      card.addEventListener('pointercancel', cancelPress);
+      card.addEventListener('pointerleave', cancelPress);
+      card.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!moveModeActive) openContextMenu(e, note.id); });
+
+      card.addEventListener('click', (e) => {
+        if (isLongPress) {
+          e.preventDefault(); e.stopPropagation(); isLongPress = false; return;
+        }
+        if (moveModeActive) return;
+        openEditor(note.id, false);
+      });
+
+      if (moveModeActive) {
+        card.addEventListener('pointerdown', (e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          if (dragState) return;
+          e.preventDefault();
+          startMoveDrag(e, card, note);
+        });
+      }
+
+      notesGrid.appendChild(card);
+    }
+  }
+
+  function startMoveDrag(e, card, note) {
+    if (dragState) return;
+    dragState = {
+      card, note,
+      startX: e.clientX, startY: e.clientY,
+      offsetX: 0, offsetY: 0,
+      dragging: false,
+      placeholder: null
+    };
+    document.addEventListener('pointermove', onMoveDragMove, { passive: false });
+    document.addEventListener('pointerup', onMoveDragEnd);
+    document.addEventListener('pointercancel', onMoveDragEnd);
+  }
+
+  function onMoveDragMove(e) {
+    if (!dragState) return;
+    e.preventDefault();
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+    
+    if (!dragState.dragging) {
+      if (Math.sqrt(dx*dx + dy*dy) < 6) return;
+      dragState.dragging = true;
+      dragState.card.classList.add('dragging');
+      const rect = dragState.card.getBoundingClientRect();
+      const ph = document.createElement('div');
+      ph.className = 'note-card-placeholder';
+      ph.style.width = rect.width + 'px';
+      ph.style.height = rect.height + 'px';
+      dragState.card.parentNode.insertBefore(ph, dragState.card);
+      dragState.placeholder = ph;
+      dragState.card.style.position = 'fixed';
+      dragState.card.style.left = rect.left + 'px';
+      dragState.card.style.top = rect.top + 'px';
+      dragState.card.style.width = rect.width + 'px';
+      dragState.card.style.height = rect.height + 'px';
+      dragState.card.style.zIndex = '1000';
+      dragState.card.style.pointerEvents = 'none';
+      dragState.offsetX = e.clientX - rect.left;
+      dragState.offsetY = e.clientY - rect.top;
+    }
+    
+    dragState.card.style.left = (e.clientX - dragState.offsetX) + 'px';
+    dragState.card.style.top = (e.clientY - dragState.offsetY) + 'px';
+    
+    const elBelow = document.elementFromPoint(e.clientX, e.clientY);
+    let targetCard = elBelow && elBelow.closest ? elBelow.closest('.note-card') : null;
+    if (targetCard === dragState.card) targetCard = null;
+    if (targetCard && targetCard.classList.contains('note-card-placeholder')) targetCard = null;
+    
+    if (!targetCard) {
+      const cards = Array.from(notesGrid.querySelectorAll('.note-card')).filter(c => c !== dragState.card);
+      let minDist = Infinity, closest = null;
+      cards.forEach(c => {
+        const r = c.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        const d = Math.sqrt((e.clientX - cx) ** 2 + (e.clientY - cy) ** 2);
+        if (d < minDist) { minDist = d; closest = c; }
+      });
+      targetCard = closest;
+    }
+    
+    if (targetCard) {
+      const targetNote = notes.find(n => n.id === targetCard.dataset.id);
+      if (targetNote && targetNote.pinned === dragState.note.pinned) {
+        const r = targetCard.getBoundingClientRect();
+        const next = (e.clientY - r.top) / (r.bottom - r.top) > 0.5;
+        if (next) targetCard.parentNode.insertBefore(dragState.placeholder, targetCard.nextSibling);
+        else targetCard.parentNode.insertBefore(dragState.placeholder, targetCard);
+      }
+    }
+  }
+
+  function onMoveDragEnd() {
+    document.removeEventListener('pointermove', onMoveDragMove);
+    document.removeEventListener('pointerup', onMoveDragEnd);
+    document.removeEventListener('pointercancel', onMoveDragEnd);
+    if (!dragState) return;
+    if (dragState.dragging) {
+      dragState.placeholder.parentNode.insertBefore(dragState.card, dragState.placeholder);
+      dragState.placeholder.remove();
+      dragState.card.classList.remove('dragging');
+      dragState.card.style.position = '';
+      dragState.card.style.left = '';
+      dragState.card.style.top = '';
+      dragState.card.style.width = '';
+      dragState.card.style.height = '';
+      dragState.card.style.zIndex = '';
+      dragState.card.style.pointerEvents = '';
+      const allCards = Array.from(notesGrid.querySelectorAll('.note-card'));
+      [true, false].forEach(pinned => {
+        const group = allCards.filter(el => {
+          const n = notes.find(x => x.id === el.dataset.id);
+          return n && n.pinned === pinned;
+        });
+        group.forEach((el, i) => {
+          const n = notes.find(x => x.id === el.dataset.id);
+          if (n) n.order = i;
+        });
+      });
+      saveNotes();
+    }
+    dragState = null;
+  }
+
+  function enterMoveMode() {
+    moveModeActive = true;
+    document.body.classList.add('move-mode');
+    moveBar.classList.add('active');
+    fab.classList.add('hidden');
+    renderNotes();
+  }
+
+  function exitMoveMode() {
+    if (!moveModeActive) return;
+    moveModeActive = false;
+    document.body.classList.remove('move-mode');
+    moveBar.classList.remove('active');
+    if (document.getElementById('view-notes').classList.contains('active')) {
+      fab.classList.remove('hidden');
+    }
+    saveNotes();
+    renderNotes();
+  }
+
+  function updateTrashFab() {
+    const isTrashView = document.getElementById('view-trash').classList.contains('active');
+    fabEmptyTrash.classList.toggle('hidden', !(isTrashView && trash.length > 0));
+  }
+
+  function renderTrash() {
+    trashGrid.innerHTML = '';
+    if (trash.length === 0) { trashEmpty.hidden = false; }
+    else {
+      trashEmpty.hidden = true;
+      const sorted = [...trash].sort((a,b) => b.deletedAt - a.deletedAt);
+      for (const note of sorted) {
+        const title = note.title.trim() || 'Пустая заметка';
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = note.content;
+        const preview = tempDiv.textContent || tempDiv.innerText || '';
+        const card = document.createElement('div');
+        card.className = 'note-card';
+        card.dataset.id = note.id;
+        card.innerHTML = `
+          <div class="note-card-title">${escapeHtml(title)}</div>
+          <div class="note-card-preview">${escapeHtml(preview)}</div>
+        `;
+
+        let pressTimer = null;
+        let isLongPress = false;
+
+        const startPress = (e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          isLongPress = false;
+          clearTimeout(pressTimer);
+          const ev = e;
+          pressTimer = setTimeout(() => {
+            isLongPress = true;
+            if (navigator.vibrate) navigator.vibrate(50);
+            openTrashContextMenu(ev, note.id);
+          }, 500);
+        };
+        const cancelPress = () => clearTimeout(pressTimer);
+
+        card.addEventListener('pointerdown', startPress);
+        card.addEventListener('pointerup', cancelPress);
+        card.addEventListener('pointercancel', cancelPress);
+        card.addEventListener('pointerleave', cancelPress);
+        card.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          openTrashContextMenu(e, note.id);
+        });
+
+        card.addEventListener('click', (e) => {
+          if (isLongPress) {
+            e.preventDefault(); e.stopPropagation(); isLongPress = false; return;
+          }
+          openEditor(note.id, true);
+        });
+
+        trashGrid.appendChild(card);
+      }
+    }
+    updateTrashFab();
+  }
+
+  function renderTasks() {
+    tasksGrid.innerHTML = '';
+    
+    if (tasks.length === 0) {
+      tasksEmpty.hidden = false;
+      tasksPagination.hidden = true;
+      tasksPagination.innerHTML = '';
+      tasksEmpty.onclick = (e) => {
+        if (e.target.id === 'emptyAddTaskBtn') return;
+        addNewTask();
+      };
+      return;
+    }
+    tasksEmpty.hidden = true;
+
+    const done = tasks.filter(t => t.completed).sort((a,b) => a.order - b.order);
+    const undone = tasks.filter(t => !t.completed).sort((a,b) => a.order - b.order);
+    const sorted = [...done, ...undone];
+    const totalPages = Math.ceil(sorted.length / TASKS_PER_PAGE) || 1;
+    
+    if (currentTaskPage > totalPages) currentTaskPage = totalPages;
+    if (currentTaskPage < 1) currentTaskPage = 1;
+
+    const start = (currentTaskPage - 1) * TASKS_PER_PAGE;
+    const pageTasks = sorted.slice(start, start + TASKS_PER_PAGE);
+
+    pageTasks.forEach(task => {
+      const item = document.createElement('div');
+      item.className = `task-item ${task.completed ? 'completed' : ''}`;
+      item.dataset.id = task.id;
+      item.dataset.completed = task.completed;
+
+      item.innerHTML = `
+        <div class="drag-handle"><svg viewBox="0 0 24 24"><path d="M4 8h16M4 16h16"/></svg></div>
+        <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
+        <div class="task-text" contenteditable="true" spellcheck="false">${task.text}</div>
+        <button class="delete-task-btn" type="button" title="Удалить">
+          <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      `;
+
+      const textEl = item.querySelector('.task-text');
+
+      const cb = item.querySelector('.task-checkbox');
+      cb.addEventListener('change', () => {
+        task.completed = cb.checked;
+        const group = tasks.filter(t => t.completed === task.completed && t.id !== task.id);
+        task.order = group.length > 0 ? Math.max(...group.map(t => t.order)) + 1 : 1;
+        saveTasks();
+        renderTasks();
+      });
+      
+      textEl.addEventListener('focus', () => {
+        formatToolbar.style.display = 'flex';
+        setTimeout(updateToolbarStates, 0);
+      });
+      textEl.addEventListener('blur', () => {
+        setTimeout(() => {
+          const active = document.activeElement;
+          if (active === noteContent) return;
+          if (active && active.classList && active.classList.contains('task-text')) return;
+          if (active && active.closest && active.closest('.todo-item')) return;
+          if (active === noteTitle) return;
+          formatToolbar.style.display = 'none';
+        }, 150);
+      });
+
+      const commitTaskText = () => {
+        syncCheckboxStates(textEl);
+        const newHtml = textEl.innerHTML.trim();
+        const oldEmpty = isTaskTextEmpty(task.text);
+        const newEmpty = isTaskTextEmpty(newHtml);
+        if (oldEmpty && newEmpty && !task.completed) return '';
+        if (task.text !== newHtml) { task.text = newHtml; saveTasks(); }
+        return newHtml;
+      };
+      
+      textEl.addEventListener('keydown', (e) => {
+        if (handleTodoTextKeydown(e, textEl)) return;
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const newHtml = commitTaskText();
+          if (newHtml === '' && !task.completed) {
+            tasks = tasks.filter(t => t.id !== task.id);
+            saveTasks();
+            renderTasks();
+            addNewTask();
+          } else {
+            addNewTask(task.id);
+          }
+        }
+      });
+
+      textEl.addEventListener('blur', (e) => {
+        if (e.relatedTarget && e.relatedTarget.classList.contains('delete-task-btn')) return;
+        const newHtml = commitTaskText();
+        if (newHtml === '' && !task.completed) {
+          const currentIndex = tasks.findIndex(t => t.id === task.id);
+          tasks = tasks.filter(t => t.id !== task.id);
+          saveTasks();
+          renderTasks();
+          setTimeout(() => {
+            const nextTask = tasks[currentIndex] || tasks[currentIndex - 1] || tasks[0];
+            if (nextTask) {
+              const el = document.querySelector(`.task-item[data-id="${nextTask.id}"] .task-text`);
+              if (el) el.focus();
+            } else addNewTask();
+          }, 50);
+        }
+      });
+
+      const delBtn = item.querySelector('.delete-task-btn');
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const currentIndex = tasks.findIndex(t => t.id === task.id);
+        tasks = tasks.filter(t => t.id !== task.id);
+        saveTasks();
+        renderTasks();
+        setTimeout(() => {
+          const nextTask = tasks[currentIndex] || tasks[currentIndex - 1] || tasks[0];
+          if (nextTask) {
+            const el = document.querySelector(`.task-item[data-id="${nextTask.id}"] .task-text`);
+            if (el) el.focus();
+          } else addNewTask();
+        }, 50);
+      });
+
+      tasksGrid.appendChild(item);
+    });
+
+    if (totalPages > 1) {
+      tasksPagination.hidden = false;
+      tasksPagination.innerHTML = '';
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.className = `page-btn ${i === currentTaskPage ? 'active' : ''}`;
+        btn.textContent = i;
+        btn.onclick = () => {
+          currentTaskPage = i;
+          renderTasks();
+          setTimeout(() => { mainEl.scrollTop = mainEl.scrollHeight; }, 0);
+        };
+        tasksPagination.appendChild(btn);
+      }
+    } else {
+      tasksPagination.hidden = true;
+      tasksPagination.innerHTML = '';
+    }
+  }
+
+  function addNewTask(afterId = null) {
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl.classList.contains('task-text')) {
+       const currentTaskId = activeEl.closest('.task-item').dataset.id;
+       const currentTask = tasks.find(t => t.id === currentTaskId);
+       if (currentTask) {
+           syncCheckboxStates(activeEl);
+           currentTask.text = activeEl.innerHTML.trim();
+           saveTasks();
+       }
+    }
+
+    const newTask = { id: genId(), text: '', completed: false, order: 0, v: 2, _fresh: true };
+    const undone = tasks.filter(t => !t.completed);
+    newTask.order = undone.length > 0 ? Math.max(...undone.map(t => t.order)) + 1 : 1;
+    if (afterId) {
+      const targetTask = tasks.find(t => t.id === afterId);
+      if (targetTask && !targetTask.completed) newTask.order = targetTask.order + 0.5;
+    }
+    tasks.push(newTask);
+    const undoneGroup = tasks.filter(t => !t.completed).sort((a,b) => a.order - b.order);
+    undoneGroup.forEach((t, i) => t.order = i);
+
+    saveTasks();
+    
+    const sorted = [...tasks.filter(t => t.completed).sort((a,b)=>a.order-b.order), ...tasks.filter(t => !t.completed).sort((a,b)=>a.order-b.order)];
+    const index = sorted.findIndex(t => t.id === newTask.id);
+    currentTaskPage = Math.floor(index / TASKS_PER_PAGE) + 1;
+    renderTasks();
+
+    setTimeout(() => {
+      mainEl.scrollTop = mainEl.scrollHeight;
+      const el = document.querySelector(`.task-item[data-id="${newTask.id}"] .task-text`);
+      if (el) {
+        el.focus();
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }, 50);
+  }
+
+  function startTaskDrag(e, taskItem) {
+    if (taskDragState) return;
+    taskDragState = {
+      el: taskItem,
+      startX: e.clientX, startY: e.clientY,
+      offsetX: 0, offsetY: 0,
+      dragging: false,
+      placeholder: null
+    };
+    document.addEventListener('pointermove', onTaskDragMove, { passive: false });
+    document.addEventListener('pointerup', onTaskDragEnd);
+    document.addEventListener('pointercancel', onTaskDragEnd);
+  }
+
+  function onTaskDragMove(e) {
+    if (!taskDragState) return;
+    e.preventDefault();
+    const dx = e.clientX - taskDragState.startX;
+    const dy = e.clientY - taskDragState.startY;
+    
+    if (!taskDragState.dragging) {
+      if (Math.sqrt(dx*dx + dy*dy) < 6) return;
+      taskDragState.dragging = true;
+      taskDragState.el.classList.add('dragging');
+      
+      const rect = taskDragState.el.getBoundingClientRect();
+      const ph = document.createElement('div');
+      ph.className = 'task-placeholder';
+      ph.style.height = rect.height + 'px';
+      taskDragState.el.parentNode.insertBefore(ph, taskDragState.el);
+      taskDragState.placeholder = ph;
+      
+      taskDragState.el.style.position = 'fixed';
+      taskDragState.el.style.left = rect.left + 'px';
+      taskDragState.el.style.top = rect.top + 'px';
+      taskDragState.el.style.width = rect.width + 'px';
+      taskDragState.el.style.zIndex = '1000';
+      taskDragState.el.style.pointerEvents = 'none';
+      taskDragState.el.style.margin = '0';
+      
+      taskDragState.offsetX = e.clientX - rect.left;
+      taskDragState.offsetY = e.clientY - rect.top;
+    }
+    
+    taskDragState.el.style.left = (e.clientX - taskDragState.offsetX) + 'px';
+    taskDragState.el.style.top = (e.clientY - taskDragState.offsetY) + 'px';
+    
+    const items = Array.from(tasksGrid.querySelectorAll('.task-item')).filter(t => t !== taskDragState.el);
+    let closest = null, minDist = Infinity;
+    items.forEach(t => {
+      const r = t.getBoundingClientRect();
+      const cy = r.top + r.height / 2;
+      const d = Math.abs(e.clientY - cy);
+      if (d < minDist) { minDist = d; closest = t; }
+    });
+    
+    if (closest && closest.dataset.completed === taskDragState.el.dataset.completed) {
+      const r = closest.getBoundingClientRect();
+      const next = e.clientY > r.top + r.height / 2;
+      if (next) closest.parentNode.insertBefore(taskDragState.placeholder, closest.nextSibling);
+      else closest.parentNode.insertBefore(taskDragState.placeholder, closest);
+    }
+  }
+
+  function onTaskDragEnd() {
+    document.removeEventListener('pointermove', onTaskDragMove);
+    document.removeEventListener('pointerup', onTaskDragEnd);
+    document.removeEventListener('pointercancel', onTaskDragEnd);
+    if (!taskDragState) return;
+    
+    if (taskDragState.dragging) {
+      const completed = taskDragState.el.dataset.completed === 'true';
+      taskDragState.placeholder.parentNode.insertBefore(taskDragState.el, taskDragState.placeholder);
+      taskDragState.placeholder.remove();
+      taskDragState.el.classList.remove('dragging');
+      taskDragState.el.style.position = '';
+      taskDragState.el.style.left = '';
+      taskDragState.el.style.top = '';
+      taskDragState.el.style.width = '';
+      taskDragState.el.style.zIndex = '';
+      taskDragState.el.style.pointerEvents = '';
+      taskDragState.el.style.margin = '';
+      
+      const allItems = Array.from(tasksGrid.querySelectorAll('.task-item'));
+      const groupItems = allItems.filter(el => el.dataset.completed === String(completed));
+      groupItems.forEach((el, index) => {
+        const t = tasks.find(x => x.id === el.dataset.id);
+        if (t) t.order = index;
+      });
+      saveTasks();
+      renderTasks();
+      setTimeout(() => { mainEl.scrollTop = mainEl.scrollHeight; }, 0);
+    }
+    
+    taskDragState = null;
+  }
+
+  // ==== СИНХРОНИЗАЦИЯ ЧЕКБОКСОВ ====
+  function syncCheckboxStates(container) {
+    container.querySelectorAll('.todo-checkbox, .task-checkbox').forEach(c => {
+      if (c.checked) c.setAttribute('checked', 'checked');
+      else c.removeAttribute('checked');
+    });
+    container.querySelectorAll('.todo-item').forEach(item => {
+      const cb = item.querySelector('.todo-checkbox');
+      if (cb) item.classList.toggle('done', cb.checked);
+    });
+  }
+
+  function createTodoElement() {
+    const el = document.createElement('div');
+    el.className = 'todo-item';
+    el.setAttribute('contenteditable', 'false');
+    el.innerHTML = `
+      <div class="todo-handle" contenteditable="false"><svg viewBox="0 0 24 24"><path d="M4 8h16M4 16h16"/></svg></div>
+      <input type="checkbox" class="todo-checkbox" contenteditable="false">
+      <div class="todo-text" contenteditable="true" data-placeholder="Задача..." spellcheck="false"></div>
+    `;
+    return el;
+  }
+
+  // ==== helper: поставить курсор в элемент ====
+  function placeCaret(node, atEnd = false) {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(!atEnd);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function placeCaretInTodoText(textEl, offset = null) {
+    if (!textEl) return;
+    setTimeout(() => {
+      textEl.focus();
+      const range = document.createRange();
+      if (offset === null) {
+        range.selectNodeContents(textEl);
+        range.collapse(false);
+      } else {
+        const walker = document.createTreeWalker(textEl, NodeFilter.SHOW_TEXT);
+        let n, count = 0, done = false;
+        while (n = walker.nextNode()) {
+          if (count + n.length >= offset) {
+            range.setStart(n, offset - count);
+            range.collapse(true);
+            done = true;
+            break;
+          }
+          count += n.length;
+        }
+        if (!done) {
+          range.selectNodeContents(textEl);
+          range.collapse(false);
+        }
+      }
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }, 0);
+  }
+
+  // ==== сохранение контейнера (заметки или задачи) ====
+  function saveContainer(container) {
+    if (!container) return;
+    if (container === noteContent) {
+      syncCheckboxStates(noteContent);
+      syncAndSaveNote();
+      pushHistory();
+    } else if (container.classList && container.classList.contains('task-text')) {
+      const taskItem = container.closest('.task-item');
+      if (taskItem) {
+        const task = tasks.find(t => t.id === taskItem.dataset.id);
+        if (task) {
+          syncCheckboxStates(container);
+          task.text = container.innerHTML.trim();
+          saveTasks();
+        }
+      }
+    }
+  }
+
+  // ==== Enter в todo (аналог списка) ====
+  function handleTodoEnter(todoItem, container) {
+    const textEl = todoItem.querySelector('.todo-text');
+    if (!textEl) return;
+    
+    const sel = window.getSelection();
+    let beforeText = '', afterText = '';
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const preRange = document.createRange();
+      preRange.selectNodeContents(textEl);
+      try { preRange.setEnd(range.startContainer, range.startOffset); } catch(err) {}
+      beforeText = preRange.toString();
+      afterText = textEl.textContent.slice(beforeText.length);
+    }
+    
+    const isEmpty = !textEl.textContent.trim();
+    
+    if (isEmpty) {
+      const p = document.createElement('div');
+      p.innerHTML = '<br>';
+      todoItem.parentNode.replaceChild(p, todoItem);
+      placeCaret(p, false);
+      saveContainer(container);
+      return;
+    }
+    
+    if (beforeText === '') {
+      const newTodo = createTodoElement();
+      todoItem.parentNode.insertBefore(newTodo, todoItem);
+      placeCaretInTodoText(newTodo.querySelector('.todo-text'), null);
+      saveContainer(container);
+      return;
+    }
+    
+    if (afterText === '') {
+      const newTodo = createTodoElement();
+      todoItem.parentNode.insertBefore(newTodo, todoItem.nextSibling);
+      placeCaretInTodoText(newTodo.querySelector('.todo-text'), null);
+      saveContainer(container);
+      return;
+    }
+    
+    textEl.textContent = beforeText;
+    const newTodo = createTodoElement();
+    const newTextEl = newTodo.querySelector('.todo-text');
+    newTextEl.textContent = afterText;
+    const cb = todoItem.querySelector('.todo-checkbox');
+    const newCb = newTodo.querySelector('.todo-checkbox');
+    if (cb && cb.checked) { newCb.checked = true; newTodo.classList.add('done'); }
+    todoItem.parentNode.insertBefore(newTodo, todoItem.nextSibling);
+    placeCaretInTodoText(newTextEl, 0);
+    saveContainer(container);
+  }
+
+  // ==== Backspace в начале todo ====
+  function handleTodoBackspace(todoItem, container) {
+    const textEl = todoItem.querySelector('.todo-text');
+    if (!textEl) return false;
+    
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+    const range = sel.getRangeAt(0);
+    
+    const preRange = document.createRange();
+    preRange.selectNodeContents(textEl);
+    try { preRange.setEnd(range.startContainer, range.startOffset); } catch(err) { return false; }
+    if (preRange.toString() !== '') return false;
+    
+    const prev = todoItem.previousElementSibling;
+    
+    if (!prev) {
+      const p = document.createElement('div');
+      if (textEl.textContent) p.textContent = textEl.textContent;
+      else p.innerHTML = '<br>';
+      todoItem.parentNode.replaceChild(p, todoItem);
+      placeCaret(p, false);
+      saveContainer(container);
+      return true;
+    }
+    
+    if (prev.classList && prev.classList.contains('todo-item')) {
+      const prevTextEl = prev.querySelector('.todo-text');
+      if (!prevTextEl) return false;
+      
+      const prevLen = prevTextEl.textContent.length;
+      
+      while (textEl.firstChild) {
+        prevTextEl.appendChild(textEl.firstChild);
+      }
+      
+      todoItem.remove();
+      placeCaretInTodoText(prevTextEl, prevLen);
+      saveContainer(container);
+      return true;
+    }
+    
+    if (prev.nodeName === 'BR') {
+      const p = document.createElement('div');
+      if (textEl.textContent) p.textContent = textEl.textContent;
+      else p.innerHTML = '<br>';
+      todoItem.parentNode.replaceChild(p, todoItem);
+      placeCaret(p, false);
+      saveContainer(container);
+      return true;
+    }
+    
+    const prevLen = prev.textContent.length;
+    while (textEl.firstChild) {
+      prev.appendChild(textEl.firstChild);
+    }
+    todoItem.remove();
+    placeCaret(prev, true);
+    saveContainer(container);
+    return true;
+  }
+
+  function handleTodoTextKeydown(e, container) {
+    const todoText = e.target.closest && e.target.closest('.todo-text');
+    if (!todoText) return false;
+    const todoItem = todoText.closest('.todo-item');
+    if (!todoItem) return false;
+    
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        e.preventDefault();
+        document.execCommand('insertLineBreak');
+        return true;
+      }
+      e.preventDefault();
+      handleTodoEnter(todoItem, container);
+      return true;
+    }
+    
+    if (e.key === 'Backspace') {
+      if (handleTodoBackspace(todoItem, container)) {
+        e.preventDefault();
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  function insertTodoItem(target) {
+    target.focus();
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    
+    let node = range.startContainer;
+    let block = null;
+    while (node && node !== target) {
+      if (node.nodeType === 1 && ['P','DIV','LI','BLOCKQUOTE'].includes(node.nodeName) && node.parentNode === target) {
+        block = node; break;
+      }
+      node = node.parentNode;
+    }
+    
+    const todoEl = createTodoElement();
+    const todoTextEl = todoEl.querySelector('.todo-text');
+    
+    if (block && block !== target) {
+      const isEmpty = !block.textContent.trim() && !block.querySelector('input, .todo-item, img');
+      if (isEmpty) {
+        block.parentNode.replaceChild(todoEl, block);
+      } else {
+        while (block.firstChild) todoTextEl.appendChild(block.firstChild);
+        block.parentNode.replaceChild(todoEl, block);
+      }
+    } else if (target.classList && target.classList.contains('task-text')) {
+      const existingTodos = target.querySelectorAll('.todo-item');
+      if (existingTodos.length > 0) {
+        const last = existingTodos[existingTodos.length - 1];
+        last.parentNode.insertBefore(todoEl, last.nextSibling);
+        last.parentNode.insertBefore(document.createElement('br'), todoEl.nextSibling);
+      } else {
+        const text = target.textContent;
+        target.innerHTML = '';
+        if (text) todoTextEl.textContent = text;
+        target.appendChild(todoEl);
+      }
+    } else {
+      const existingTodos = target.querySelectorAll('.todo-item');
+      if (existingTodos.length > 0) {
+        const last = existingTodos[existingTodos.length - 1];
+        last.parentNode.insertBefore(todoEl, last.nextSibling);
+      } else {
+        const isEmpty = !target.textContent.trim();
+        if (!isEmpty) {
+          while (target.firstChild) todoTextEl.appendChild(target.firstChild);
+          target.innerHTML = '';
+        } else {
+          target.innerHTML = '';
+        }
+        target.appendChild(todoEl);
+      }
+    }
+    
+    placeCaretInTodoText(todoTextEl, null);
+    saveContainer(target);
+  }
+
+  function findTodoInRange(target, range) {
+    if (!range) return null;
+    let node = range.startContainer;
+    while (node && node !== target) {
+      if (node.nodeType === 1 && node.classList && node.classList.contains('todo-item')) {
+        return node;
+      }
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  function toggleTodoAtCursor(target) {
+    if (!target) return;
+    
+    if (savedRange) {
+      const sel = window.getSelection();
+      try {
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+      } catch(e) {}
+    }
+    
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : null;
+    
+    let todoItem = range ? findTodoInRange(target, range) : null;
+    if (!todoItem && sel && sel.anchorNode) {
+      let node = sel.anchorNode;
+      while (node && node !== target) {
+        if (node.nodeType === 1 && node.classList && node.classList.contains('todo-item')) {
+          todoItem = node; break;
+        }
+        node = node.parentNode;
+      }
+    }
+    
+    if (todoItem) {
+      const textEl = todoItem.querySelector('.todo-text');
+      const text = textEl ? textEl.textContent : '';
+      const p = document.createElement('div');
+      if (text) p.textContent = text;
+      else p.innerHTML = '<br>';
+      todoItem.parentNode.replaceChild(p, todoItem);
+      placeCaret(p, false);
+      saveContainer(target);
+    } else {
+      insertTodoItem(target);
+    }
+  }
+
+  // ==== DRAG ВНУТРИ TODO ====
+  function startTodoDrag(e, todoItem, container) {
+    if (todoDragState) return;
+    todoDragState = {
+      el: todoItem,
+      container,
+      startX: e.clientX, startY: e.clientY,
+      offsetX: 0, offsetY: 0,
+      dragging: false,
+      placeholder: null
+    };
+    document.addEventListener('pointermove', onTodoDragMove, { passive: false });
+    document.addEventListener('pointerup', onTodoDragEnd);
+    document.addEventListener('pointercancel', onTodoDragEnd);
+  }
+
+  function onTodoDragMove(e) {
+    if (!todoDragState) return;
+    e.preventDefault();
+    const dx = e.clientX - todoDragState.startX;
+    const dy = e.clientY - todoDragState.startY;
+    
+    if (!todoDragState.dragging) {
+      if (Math.sqrt(dx*dx + dy*dy) < 5) return;
+      todoDragState.dragging = true;
+      todoDragState.el.classList.add('dragging');
+      
+      const rect = todoDragState.el.getBoundingClientRect();
+      const ph = document.createElement('div');
+      ph.className = 'todo-placeholder';
+      ph.style.height = rect.height + 'px';
+      todoDragState.el.parentNode.insertBefore(ph, todoDragState.el);
+      todoDragState.placeholder = ph;
+      
+      todoDragState.el.style.position = 'fixed';
+      todoDragState.el.style.left = rect.left + 'px';
+      todoDragState.el.style.top = rect.top + 'px';
+      todoDragState.el.style.width = rect.width + 'px';
+      todoDragState.el.style.zIndex = '1000';
+      todoDragState.el.style.pointerEvents = 'none';
+      todoDragState.el.style.margin = '0';
+      todoDragState.el.style.background = 'var(--bg)';
+      todoDragState.el.style.padding = '4px 8px';
+      todoDragState.el.style.borderRadius = '6px';
+      
+      todoDragState.offsetX = e.clientX - rect.left;
+      todoDragState.offsetY = e.clientY - rect.top;
+    }
+    
+    todoDragState.el.style.left = (e.clientX - todoDragState.offsetX) + 'px';
+    todoDragState.el.style.top = (e.clientY - todoDragState.offsetY) + 'px';
+    
+    const todos = Array.from(todoDragState.container.querySelectorAll('.todo-item')).filter(t => t !== todoDragState.el);
+    let closest = null, minDist = Infinity;
+    todos.forEach(t => {
+      const r = t.getBoundingClientRect();
+      const cy = r.top + r.height / 2;
+      const d = Math.abs(e.clientY - cy);
+      if (d < minDist) { minDist = d; closest = t; }
+    });
+    
+    if (closest) {
+      const r = closest.getBoundingClientRect();
+      const next = e.clientY > r.top + r.height / 2;
+      if (next) closest.parentNode.insertBefore(todoDragState.placeholder, closest.nextSibling);
+      else closest.parentNode.insertBefore(todoDragState.placeholder, closest);
+    }
+  }
+
+  function onTodoDragEnd() {
+    document.removeEventListener('pointermove', onTodoDragMove);
+    document.removeEventListener('pointerup', onTodoDragEnd);
+    document.removeEventListener('pointercancel', onTodoDragEnd);
+    if (!todoDragState) return;
+    
+    if (todoDragState.dragging) {
+      todoDragState.placeholder.parentNode.insertBefore(todoDragState.el, todoDragState.placeholder);
+      todoDragState.placeholder.remove();
+      todoDragState.el.classList.remove('dragging');
+      todoDragState.el.style.position = '';
+      todoDragState.el.style.left = '';
+      todoDragState.el.style.top = '';
+      todoDragState.el.style.width = '';
+      todoDragState.el.style.zIndex = '';
+      todoDragState.el.style.pointerEvents = '';
+      todoDragState.el.style.margin = '';
+      todoDragState.el.style.background = '';
+      todoDragState.el.style.padding = '';
+      todoDragState.el.style.borderRadius = '';
+      
+      saveContainer(todoDragState.container);
+    }
+    todoDragState = null;
+  }
+
+  // ==== UTIL ====
+  function updateUndoRedoButtons() {
+    document.getElementById('undoBtn').disabled = undoStack.length <= 1;
+    document.getElementById('redoBtn').disabled = redoStack.length === 0;
+  }
+
+  function pushHistory() {
+    const state = { title: noteTitle.value, content: noteContent.innerHTML };
+    const last = undoStack[undoStack.length - 1];
+    if (last && last.title === state.title && last.content === state.content) return;
+    undoStack.push(state);
+    if (undoStack.length > 10) undoStack.shift();
+    redoStack = [];
+    updateUndoRedoButtons();
+  }
+
+  function syncAndSaveNote() {
+    if (!currentNoteId || currentEditorMode !== 'notes') return;
+    syncCheckboxStates(noteContent);
+    const idx = notes.findIndex(n => n.id === currentNoteId);
+    if (idx !== -1) {
+      notes[idx].title = noteTitle.value.trim();
+      notes[idx].content = noteContent.innerHTML.trim();
+      notes[idx].updatedAt = Date.now();
+      saveNotes();
+    }
+  }
+
+  function openContextMenu(e, noteId) {
+    if (e && e.preventDefault) e.preventDefault();
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    contextNoteId = noteId;
+    document.getElementById('ctxTitle').textContent = note.title.trim() || 'Пустая заметка';
+    document.getElementById('ctxPinText').textContent = note.pinned ? 'Открепить' : 'Закрепить';
+    
+    let x = e.clientX, y = e.clientY;
+    if (e.touches && e.touches.length > 0) {
+      x = e.touches[0].clientX; y = e.touches[0].clientY;
+    }
+    const menuWidth = 200, menuHeight = 190;
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
+    contextMenu.style.left = `${Math.max(10, x)}px`;
+    contextMenu.style.top = `${Math.max(10, y)}px`;
+    contextMenu.classList.add('active');
+  }
+
+  function closeContextMenu() {
+    contextMenu.classList.remove('active');
+    contextNoteId = null;
+  }
+
+  function openTrashContextMenu(e, noteId) {
+    if (e && e.preventDefault) e.preventDefault();
+    const note = trash.find(n => n.id === noteId);
+    if (!note) return;
+    contextTrashNoteId = noteId;
+    document.getElementById('trashCtxTitle').textContent = note.title.trim() || 'Пустая заметка';
+    
+    let x = e.clientX, y = e.clientY;
+    if (e.touches && e.touches.length > 0) {
+      x = e.touches[0].clientX; y = e.touches[0].clientY;
+    }
+    const menuWidth = 200, menuHeight = 150;
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
+    trashContextMenu.style.left = `${Math.max(10, x)}px`;
+    trashContextMenu.style.top = `${Math.max(10, y)}px`;
+    trashContextMenu.classList.add('active');
+  }
+
+  function closeTrashContextMenu() {
+    trashContextMenu.classList.remove('active');
+    contextTrashNoteId = null;
+  }
+
+  function switchView(view) {
+    exitMoveMode();
+    formatToolbar.style.display = 'none';
+    tasks = tasks.filter(t => !isTaskTextEmpty(t.text) || t.completed || t._fresh);
+    document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.drawer-item').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById(`view-${view}`).classList.add('active');
+    document.querySelector(`.drawer-item[data-view="${view}"]`).classList.add('active');
+
+    fab.classList.add('hidden');
+    fabEmptyTrash.classList.add('hidden');
+
+    if (view === 'notes') {
+      headerSubtitle.textContent = 'Все заметки';
+      fab.classList.remove('hidden');
+      renderNotes();
+    } else if (view === 'tasks') {
+      headerSubtitle.textContent = 'Задачи';
+      const total = Math.ceil(tasks.length / TASKS_PER_PAGE) || 1;
+      currentTaskPage = total;
+      renderTasks();
+      setTimeout(() => { mainEl.scrollTop = mainEl.scrollHeight; }, 50);
+    } else if (view === 'trash') {
+      headerSubtitle.textContent = 'Корзина';
+      renderTrash();
+    }
+    closeDrawer();
+  }
+
+  function openDrawer() { drawer.classList.add('active'); drawerOverlay.classList.add('active'); }
+  function closeDrawer() { drawer.classList.remove('active'); drawerOverlay.classList.remove('active'); }
+
+  function openEditor(id = null, isTrash = false) {
+    currentEditorMode = isTrash ? 'trash' : 'notes';
+    undoStack = [];
+    redoStack = [];
+    formatToolbar.style.display = 'none';
+    savedRange = null;
+    savedEditable = null;
+    
+    if (id) {
+      const note = isTrash ? trash.find(n => n.id === id) : notes.find(n => n.id === id);
+      if (!note) return;
+      currentNoteId = id;
+      noteTitle.value = note.title;
+      noteContent.innerHTML = note.content;
+      syncCheckboxStates(noteContent);
+      
+      if (isTrash) {
+        noteTitle.readOnly = true;
+        noteContent.contentEditable = "false";
+        saveNoteBtn.style.display = 'none';
+        restoreNoteBtn.style.display = 'flex';
+      } else {
+        noteTitle.readOnly = false;
+        noteContent.contentEditable = "true";
+        saveNoteBtn.style.display = 'flex';
+        restoreNoteBtn.style.display = 'none';
+      }
+    } else {
+      currentNoteId = null;
+      noteTitle.value = '';
+      noteContent.innerHTML = '';
+      noteTitle.readOnly = false;
+      noteContent.contentEditable = "true";
+      saveNoteBtn.style.display = 'flex';
+      restoreNoteBtn.style.display = 'none';
+    }
+    
+    undoStack.push({ title: noteTitle.value, content: noteContent.innerHTML });
+    updateUndoRedoButtons();
+    editorOverlay.classList.add('active');
+    if (!id) setTimeout(() => noteTitle.focus(), 100);
+  }
+
+  function closeEditor() { 
+    editorOverlay.classList.remove('active'); 
+    editorDropdown.classList.remove('active');
+    formatToolbar.style.display = 'none';
+    formatToolbar.style.bottom = '0px';
+    currentNoteId = null; 
+    savedRange = null;
+    savedEditable = null;
+  }
+
+  function saveCurrentNote() {
+    if (currentEditorMode === 'trash') return;
+    syncCheckboxStates(noteContent);
+    const title = noteTitle.value.trim();
+    const content = noteContent.innerHTML.trim();
+    if (currentNoteId) {
+      const idx = notes.findIndex(n => n.id === currentNoteId);
+      if (idx !== -1) {
+        notes[idx].title = title;
+        notes[idx].content = content;
+        notes[idx].updatedAt = Date.now();
+      }
+    } else if (title || content) {
+      notes.push({ 
+        id: genId(), title, content, 
+        updatedAt: Date.now(), createdAt: Date.now(), 
+        deletedAt: null, pinned: false, noteType: 'normal', 
+        timerStartedAt: null, order: getNewNoteOrder(false) 
+      });
+      normalizeOrders();
+    }
+    saveNotes(); closeEditor(); renderNotes();
+  }
+
+  function restoreNote() {
+    if (!currentNoteId || currentEditorMode !== 'trash') return;
+    const idx = trash.findIndex(n => n.id === currentNoteId);
+    if (idx !== -1) {
+      const note = trash.splice(idx, 1)[0];
+      delete note.deletedAt;
+      note.updatedAt = Date.now();
+      note.order = getNewNoteOrder(note.pinned);
+      notes.push(note);
+      normalizeOrders();
+      saveNotes();
+      saveTrash();
+      closeEditor();
+      renderNotes();
+      renderTrash();
+    }
+  }
+
+  function applyProperty(type) {
+    if (!currentNoteId) {
+      const title = noteTitle.value.trim();
+      const content = noteContent.innerHTML.trim();
+      if (!title && !content) {
+        alert('Сначала напишите что-нибудь в заметку!');
+        return;
+      }
+      const newNote = { 
+        id: genId(), title, content, 
+        updatedAt: Date.now(), createdAt: Date.now(), 
+        deletedAt: null, pinned: false, noteType: 'normal', 
+        timerStartedAt: null, order: getNewNoteOrder(false) 
+      };
+      notes.push(newNote);
+      normalizeOrders();
+      currentNoteId = newNote.id;
+      saveNotes();
+    }
+    const note = notes.find(n => n.id === currentNoteId);
+    if (!note) return;
+    note.noteType = type;
+    if (type === 'timer') {
+      note.timerStartedAt = Date.now();
+      note.createdAt = Date.now();
+    } else {
+      note.timerStartedAt = null;
+    }
+    saveNotes();
+    renderNotes();
+    propertyModal.classList.remove('active');
+  }
+
+  function showDeleteModal() {
+    if (!currentNoteId) return;
+    pendingDeleteId = currentNoteId;
+    if (currentEditorMode === 'trash') {
+      deleteModalTitle.textContent = 'Удалить навсегда?';
+      deleteModalDesc.textContent = 'Заметка будет удалена без возможности восстановления.';
+    } else {
+      deleteModalTitle.textContent = 'Удалить заметку?';
+      deleteModalDesc.textContent = 'Заметка переместится в корзину.';
+    }
+    deleteModal.classList.add('active');
+  }
+
+  function hideDeleteModal() { 
+    deleteModal.classList.remove('active'); 
+    pendingDeleteId = null; 
+  }
+
+  function confirmDelete() {
+    if (!pendingDeleteId) return;
+    if (currentEditorMode === 'trash') {
+      trash = trash.filter(n => n.id !== pendingDeleteId);
+      saveTrash();
+    } else {
+      const idx = notes.findIndex(n => n.id === pendingDeleteId);
+      if (idx !== -1) {
+        const note = notes.splice(idx, 1)[0];
+        note.deletedAt = Date.now();
+        trash.push(note);
+        normalizeOrders();
+        saveNotes();
+        saveTrash();
+      }
+    }
+    hideDeleteModal(); 
+    closeEditor(); 
+    renderNotes(); 
+    renderTrash();
+  }
+
+  function showEmptyTrashModal() {
+    if (trash.length === 0) return;
+    document.getElementById('emptyTrashModal').classList.add('active');
+  }
+  function hideEmptyTrashModal() {
+    document.getElementById('emptyTrashModal').classList.remove('active');
+  }
+  function emptyTrashNow() {
+    trash = [];
+    saveTrash();
+    renderTrash();
+    updateTrashFab();
+    hideEmptyTrashModal();
+  }
+
+  setInterval(() => {
+    const now = Date.now();
+    const expiredIds = [];
+    notes.forEach(note => {
+      if (note.noteType !== 'timer') return;
+      const startTime = note.timerStartedAt || note.createdAt;
+      const remaining = 10 * 60 * 1000 - (now - startTime);
+      if (remaining <= 0) expiredIds.push(note.id);
+    });
+    if (expiredIds.length > 0) {
+      const editedNoteExpired = currentNoteId && expiredIds.includes(currentNoteId);
+      expiredIds.forEach(id => {
+        const idx = notes.findIndex(n => n.id === id);
+        if (idx !== -1) {
+          const n = notes.splice(idx, 1)[0];
+          n.deletedAt = now;
+          trash.push(n);
+        }
+      });
+      normalizeOrders();
+      saveNotes();
+      saveTrash();
+      renderNotes();
+      renderTrash();
+      if (editedNoteExpired) closeEditor();
+      return;
+    }
+    document.querySelectorAll('.timer-badge').forEach(el => {
+      const id = el.dataset.id;
+      const note = notes.find(n => n.id === id);
+      if (!note || note.noteType !== 'timer') return;
+      const startTime = note.timerStartedAt || note.createdAt;
+      const remaining = 10 * 60 * 1000 - (now - startTime);
+      if (remaining > 0) {
+        const sec = Math.floor(remaining / 1000);
+        const m = String(Math.floor(sec / 60)).padStart(2, '0');
+        const s = String(sec % 60).padStart(2, '0');
+        const span = el.querySelector('span');
+        if (span) span.textContent = `${m}:${s}`;
+      }
+    });
+  }, 1000);
+
+  if (window.visualViewport) {
+    const handleResize = () => {
+      const offset = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
+      formatToolbar.style.bottom = offset > 50 ? `${offset}px` : '0px';
+    };
+    window.visualViewport.addEventListener('resize', handleResize);
+    window.visualViewport.addEventListener('scroll', handleResize);
+  }
+
+  function getActiveEditable() {
+    const active = document.activeElement;
+    if (active && (active === noteContent || (active.classList && active.classList.contains('task-text')))) return active;
+    if (active && active.classList && active.classList.contains('todo-text')) {
+      const p = active.closest('.task-text') || active.closest('.editor-content');
+      if (p) return p;
+    }
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const node = sel.anchorNode;
+      if (node) {
+        const el = node.nodeType === 1 ? node : node.parentNode;
+        if (el) {
+          if (el === noteContent || noteContent.contains(el)) return noteContent;
+          if (el.closest && el.closest('.task-text')) return el.closest('.task-text');
+        }
+      }
+    }
+    return null;
+  }
+
+  function updateToolbarStates() {
+    if (formatToolbar.style.display === 'none') return;
+    const target = getActiveEditable();
+    if (!target) return;
+    
+    const cmds = ['bold', 'italic', 'underline', 'insertUnorderedList'];
+    cmds.forEach(cmd => {
+      try {
+        const state = document.queryCommandState(cmd);
+        const btn = document.querySelector(`.format-btn[data-cmd="${cmd}"]`);
+        if (btn) btn.classList.toggle('active', state);
+      } catch(e) {}
+    });
+    
+    try {
+      const block = document.queryCommandValue('formatBlock');
+      const bqBtn = document.querySelector('.format-btn[data-cmd="blockquote"]');
+      if (bqBtn) bqBtn.classList.toggle('active', !!(block && block.toLowerCase() === 'blockquote'));
+    } catch(e) {}
+    
+    const todoBtn = document.querySelector('.format-btn[data-cmd="insertTodo"]');
+    if (todoBtn) {
+      let inTodo = false;
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        let node = sel.anchorNode;
+        while (node && node !== target) {
+          if (node.nodeType === 1 && node.classList && node.classList.contains('todo-item')) {
+            inTodo = true; break;
+          }
+          node = node.parentNode;
+        }
+      }
+      todoBtn.classList.toggle('active', inTodo);
+    }
+  }
+
+  function runToolbarCommand(btn) {
+    const cmd = btn.dataset.cmd;
+    const target = getActiveEditable();
+    if (!target) return;
+    
+    target.focus();
+    
+    if (savedRange && savedEditable) {
+      const sel = window.getSelection();
+      try {
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+      } catch(e) {}
+    }
+    
+    if (cmd === 'insertTodo') {
+      toggleTodoAtCursor(target);
+    } else if (cmd === 'blockquote') {
+      const sel = window.getSelection();
+      let isBq = false;
+      if (sel && sel.rangeCount > 0) {
+        let node = sel.anchorNode;
+        while (node && node !== target) {
+          if (node.nodeName === 'BLOCKQUOTE') { isBq = true; break; }
+          node = node.parentNode;
+        }
+      }
+      document.execCommand('formatBlock', false, isBq ? 'p' : 'blockquote');
+    } else {
+      document.execCommand(cmd, false, null);
+    }
+    if (target === noteContent) pushHistory();
+    setTimeout(updateToolbarStates, 0);
+  }
+
+  let lastToolbarTouch = 0;
+  document.querySelectorAll('.format-btn').forEach(btn => {
+    btn.addEventListener('pointerdown', () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        const c = range.commonAncestorContainer;
+        const el = c.nodeType === 1 ? c : c.parentNode;
+        if (el && el.closest) {
+          const ed = el.closest('[contenteditable="true"]');
+          if (ed && (ed === noteContent || ed.classList.contains('task-text') || ed.classList.contains('todo-text'))) {
+            savedRange = range.cloneRange();
+            savedEditable = ed === noteContent ? noteContent : (ed.closest('.task-text') || ed);
+          }
+        }
+      }
+    });
+    
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    btn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      lastToolbarTouch = Date.now();
+      runToolbarCommand(btn);
+    });
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (Date.now() - lastToolbarTouch < 500) return;
+      runToolbarCommand(btn);
+    });
+  });
+
+  document.addEventListener('selectionchange', () => {
+    if (formatToolbar.style.display === 'none') return;
+    updateToolbarStates();
+  });
+
+  // ==== ГЛОБАЛЬНЫЙ DRAG HANDLER ====
+  document.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    
+    const todoHandle = e.target.closest && e.target.closest('.todo-handle');
+    if (todoHandle) {
+      const todoItem = todoHandle.closest('.todo-item');
+      if (todoItem) {
+        e.preventDefault();
+        startTodoDrag(e, todoItem, todoItem.parentElement);
+      }
+      return;
+    }
+    
+    const taskHandle = e.target.closest && e.target.closest('.drag-handle');
+    if (taskHandle) {
+      if (e.target.closest('.todo-item')) return;
+      const taskItem = taskHandle.closest('.task-item');
+      if (taskItem) {
+        e.preventDefault();
+        startTaskDrag(e, taskItem);
+      }
+    }
+  });
+
+  // ==== КЛИКИ ПО ЧЕКБОКСАМ ====
+  function handleCheckboxClick(e, container) {
+    const target = e.target;
+    if (target.classList && target.classList.contains('todo-checkbox')) {
+      const todoItem = target.closest('.todo-item');
+      if (todoItem) todoItem.classList.toggle('done', target.checked);
+      
+      saveContainer(container);
+      return true;
+    }
+    return false;
+  }
+
+  // ==== СОБЫТИЯ ====
+  document.getElementById('menuBtn').addEventListener('click', openDrawer);
+  drawerOverlay.addEventListener('click', closeDrawer);
+  document.getElementById('navNotes').addEventListener('click', () => switchView('notes'));
+  document.getElementById('navTasks').addEventListener('click', () => switchView('tasks'));
+  document.getElementById('navTrash').addEventListener('click', () => switchView('trash'));
+
+  // ==== СИНХРОНИЗАЦИЯ: кнопка и модалка ====
+  document.getElementById('syncBtn').addEventListener('click', () => {
+    updateSyncUI();
+    document.getElementById('syncModal').classList.add('active');
+  });
+  document.getElementById('closeSyncBtn').addEventListener('click', () => {
+    document.getElementById('syncModal').classList.remove('active');
+  });
+  document.getElementById('syncModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('syncModal')) {
+      document.getElementById('syncModal').classList.remove('active');
+    }
+  });
+
+  document.getElementById('syncOtherSettingsBtn').addEventListener('click', () => {
+    alert('Другие настройки пока в разработке.');
+  });
+
+  document.getElementById('syncSaveBtn').addEventListener('click', async () => {
+    const t = document.getElementById('syncTokenInput').value.trim();
+    if (!t) return;
+
+    syncToken = t;
+    localStorage.setItem(SYNC_TOKEN_KEY, t);
+    remoteSha = null;
+    syncStatus = 'syncing';
+    updateSyncUI();
+    await pullFromGitHub();
+  });
+
+  document.getElementById('syncDisableBtn').addEventListener('click', () => {
+    if (!confirm('Отключить синхронизацию? Локальные данные останутся.')) return;
+    syncToken = null;
+    remoteSha = null;
+    syncStatus = 'off';
+    syncError = '';
+    localStorage.removeItem(SYNC_TOKEN_KEY);
+    updateSyncUI();
+    document.getElementById('syncModal').classList.remove('active');
+  });
+
+  document.getElementById('syncNowBtn').addEventListener('click', () => pullFromGitHub());
+
+  document.getElementById('syncKeepLocal').addEventListener('click', async () => {
+    document.getElementById('syncConflictModal').classList.remove('active');
+    pendingRemoteData = null;
+    syncStatus = 'syncing'; updateSyncUI();
+    await pushToGitHub({ force: true });
+  });
+
+  document.getElementById('syncKeepRemote').addEventListener('click', () => {
+    if (!pendingRemoteData) return;
+    applyPayload(pendingRemoteData);
+    pendingRemoteData = null;
+    document.getElementById('syncConflictModal').classList.remove('active');
+    syncStatus = 'ready'; updateSyncUI();
+  });
+
+  fab.addEventListener('click', () => openEditor());
+  fabEmptyTrash.addEventListener('click', showEmptyTrashModal);
+  
+  saveNoteBtn.addEventListener('click', saveCurrentNote);
+  restoreNoteBtn.addEventListener('click', restoreNote);
+  
+  document.getElementById('undoBtn').addEventListener('click', () => {
+    if (undoStack.length <= 1) return;
+    const current = undoStack.pop();
+    redoStack.push(current);
+    const prev = undoStack[undoStack.length - 1];
+    noteTitle.value = prev.title;
+    noteContent.innerHTML = prev.content;
+    updateUndoRedoButtons();
+  });
+
+  document.getElementById('redoBtn').addEventListener('click', () => {
+    if (redoStack.length === 0) return;
+    const next = redoStack.pop();
+    undoStack.push(next);
+    noteTitle.value = next.title;
+    noteContent.innerHTML = next.content;
+    updateUndoRedoButtons();
+  });
+
+  [noteTitle, noteContent].forEach(el => {
+    el.addEventListener('input', () => {
+      clearTimeout(historyTimer);
+      historyTimer = setTimeout(pushHistory, 500);
+    });
+  });
+
+  noteContent.addEventListener('focus', () => {
+    if (currentEditorMode === 'notes') {
+      formatToolbar.style.display = 'flex';
+      setTimeout(updateToolbarStates, 0);
+    }
+  });
+  noteContent.addEventListener('blur', () => {
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (active === noteContent) return;
+      if (active && active.classList && active.classList.contains('task-text')) return;
+      if (active && active.closest && active.closest('.todo-item')) return;
+      if (active === noteTitle) return;
+      formatToolbar.style.display = 'none';
+    }, 150);
+  });
+  noteTitle.addEventListener('focus', () => {
+    formatToolbar.style.display = 'none';
+  });
+
+  noteContent.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('.todo-handle')) return;
+    if (e.target.classList && e.target.classList.contains('todo-checkbox')) {
+      e.stopPropagation();
+    }
+  });
+
+  noteContent.addEventListener('change', (e) => {
+    const cb = e.target.closest && e.target.closest('.todo-checkbox');
+    if (!cb || !noteContent.contains(cb)) return;
+
+    const todoItem = cb.closest('.todo-item');
+    if (todoItem) todoItem.classList.toggle('done', cb.checked);
+
+    if (cb.checked) cb.setAttribute('checked', 'checked');
+    else cb.removeAttribute('checked');
+
+    saveContainer(noteContent);
+  });
+
+  noteContent.addEventListener('keydown', (e) => {
+    if (handleTodoTextKeydown(e, noteContent)) return;
+  });
+
+  tasksGrid.addEventListener('click', (e) => {
+    if (e.target.classList && e.target.classList.contains('todo-checkbox')) {
+      const container = e.target.closest('.task-text');
+      if (container) handleCheckboxClick(e, container);
+    }
+  });
+
+  document.getElementById('editorDotsBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    editorDropdown.classList.toggle('active');
+  });
+
+  document.getElementById('dropdownAddProp').addEventListener('click', () => {
+    editorDropdown.classList.remove('active');
+    if (!currentNoteId && !noteTitle.value.trim() && !noteContent.innerHTML.trim()) {
+      alert('Сначала создайте или сохраните заметку.');
+      return;
+    }
+    propertyModal.classList.add('active');
+  });
+
+  document.getElementById('dropdownClose').addEventListener('click', () => {
+    editorDropdown.classList.remove('active');
+    closeEditor();
+  });
+
+  document.getElementById('cancelPropBtn').addEventListener('click', () => {
+    propertyModal.classList.remove('active');
+  });
+  document.getElementById('propNormalBtn').addEventListener('click', () => applyProperty('normal'));
+  document.getElementById('propTimerBtn').addEventListener('click', () => applyProperty('timer'));
+
+  document.getElementById('ctxPin').addEventListener('click', () => {
+    if (!contextNoteId) return;
+    const note = notes.find(n => n.id === contextNoteId);
+    if (note) {
+      const oldPin = note.pinned;
+      note.pinned = !oldPin;
+      const oldGroup = notes.filter(n => n.pinned === oldPin && n.id !== note.id)
+        .sort((a,b) => (a.order ?? 0) - (b.order ?? 0));
+      oldGroup.forEach((n, i) => n.order = i);
+      note.order = getNewNoteOrder(note.pinned);
+      normalizeOrders();
+      saveNotes();
+      renderNotes();
+    }
+    closeContextMenu();
+  });
+
+  document.getElementById('ctxMove').addEventListener('click', () => {
+    if (!contextNoteId) return;
+    closeContextMenu();
+    enterMoveMode();
+  });
+
+  document.getElementById('ctxDelete').addEventListener('click', () => {
+    if (!contextNoteId) return;
+    const idx = notes.findIndex(n => n.id === contextNoteId);
+    if (idx !== -1) {
+      const note = notes.splice(idx, 1)[0];
+      note.deletedAt = Date.now();
+      trash.push(note);
+      normalizeOrders();
+      saveNotes();
+      saveTrash();
+      renderNotes();
+      renderTrash();
+    }
+    closeContextMenu();
+  });
+
+  document.getElementById('trashCtxRestore').addEventListener('click', () => {
+    if (!contextTrashNoteId) return;
+    const idx = trash.findIndex(n => n.id === contextTrashNoteId);
+    if (idx !== -1) {
+      const note = trash.splice(idx, 1)[0];
+      delete note.deletedAt;
+      note.updatedAt = Date.now();
+      note.order = getNewNoteOrder(note.pinned);
+      notes.push(note);
+      normalizeOrders();
+      saveNotes();
+      saveTrash();
+      renderNotes();
+      renderTrash();
+    }
+    closeTrashContextMenu();
+  });
+
+  document.getElementById('trashCtxDelete').addEventListener('click', () => {
+    if (!contextTrashNoteId) return;
+    trash = trash.filter(n => n.id !== contextTrashNoteId);
+    saveTrash();
+    renderTrash();
+    closeTrashContextMenu();
+  });
+
+  document.getElementById('cancelDeleteBtn').addEventListener('click', hideDeleteModal);
+  document.getElementById('confirmDeleteBtn').addEventListener('click', confirmDelete);
+  deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) hideDeleteModal(); });
+
+  document.getElementById('cancelEmptyTrashBtn').addEventListener('click', hideEmptyTrashModal);
+  document.getElementById('confirmEmptyTrashBtn').addEventListener('click', emptyTrashNow);
+  document.getElementById('emptyTrashModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('emptyTrashModal')) hideEmptyTrashModal();
+  });
+
+  document.getElementById('moveDoneBtn').addEventListener('click', exitMoveMode);
+
+  document.getElementById('emptyAddTaskBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    addNewTask();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#contextMenu')) closeContextMenu();
+    if (!e.target.closest('#trashContextMenu')) closeTrashContextMenu();
+    if (!e.target.closest('#editorDotsBtn') && !e.target.closest('#editorDropdown')) {
+      editorDropdown.classList.remove('active');
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (moveModeActive) return exitMoveMode();
+      if (propertyModal.classList.contains('active')) return propertyModal.classList.remove('active');
+      if (deleteModal.classList.contains('active')) return hideDeleteModal();
+      if (document.getElementById('emptyTrashModal').classList.contains('active')) return hideEmptyTrashModal();
+      if (document.getElementById('syncModal').classList.contains('active')) return document.getElementById('syncModal').classList.remove('active');
+      if (document.getElementById('syncConflictModal').classList.contains('active')) return document.getElementById('syncConflictModal').classList.remove('active');
+      if (contextMenu.classList.contains('active')) return closeContextMenu();
+      if (trashContextMenu.classList.contains('active')) return closeTrashContextMenu();
+      if (editorDropdown.classList.contains('active')) return editorDropdown.classList.remove('active');
+      if (editorOverlay.classList.contains('active')) return closeEditor();
+      if (drawer.classList.contains('active')) return closeDrawer();
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+      if (editorOverlay.classList.contains('active')) { e.preventDefault(); saveCurrentNote(); }
+    }
+  });
+
+  loadData();
+  checkTrashMidnightCleanup();
+  setInterval(checkTrashMidnightCleanup, 60000);
+  renderNotes();
+  renderTasks();
+  renderTrash();
+  updateCounts();
+
+  // Init cloud sync
+  try {
+    const t = localStorage.getItem(SYNC_TOKEN_KEY);
+    if (t) { syncToken = t; syncStatus = 'ready'; }
+  } catch {}
+  updateSyncUI();
+  if (syncToken) pullFromGitHub().catch(() => {});
+</script>
+
+  <script>
+    // Регистрация Service Worker для PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker зарегистрирован!', reg))
+          .catch(err => console.log('Ошибка регистрации Service Worker', err));
+      });
+    }
+  </script>
+</body>
+</html>
+
+</body>
+</html>
